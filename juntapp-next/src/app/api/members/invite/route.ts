@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { authActionUrl, publicAppUrl, sendTransactionalEmail } from '@/lib/email';
 import { membershipInviteTemplate } from '@/lib/email-templates';
+import { assignableBoardPositionSchema, authorizeMemberInvite } from '@/lib/board-role';
 
 const memberSchema = z.object({
   name: z.string().trim().min(3).max(160),
@@ -14,7 +15,7 @@ const memberSchema = z.object({
   phone: z.string().trim().max(40).refine((value) => /^(?:56)?9\d{8}$/.test(value.replace(/\D/g, '')), 'Celular inválido'),
   email: z.email(),
   role: z.enum(['vecino', 'dirigente']).default('vecino'),
-  boardPosition: z.enum(['presidente', 'secretario', 'tesorero', 'dirigente']).optional(),
+  boardPosition: assignableBoardPositionSchema.optional(),
 }).refine((data) => data.role === 'vecino' || Boolean(data.boardPosition), {
   message: 'El cargo es obligatorio para dirigentes.',
   path: ['boardPosition'],
@@ -37,13 +38,17 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, junta_id, juntas(invite_code, name)')
+    .select('role, board_position, junta_id, juntas(invite_code, name)')
     .eq('id', user.id)
     .single();
 
   const junta = Array.isArray(profile?.juntas) ? profile.juntas[0] : profile?.juntas;
-  if (!profile || profile.role !== 'dirigente' || !junta?.invite_code) {
+  if (!profile || !junta?.invite_code) {
     return NextResponse.json({ error: 'Se requiere rol de dirigente.' }, { status: 403 });
+  }
+  const inviteAuthorization = authorizeMemberInvite(profile, parsed.data.role, parsed.data.boardPosition);
+  if (!inviteAuthorization.ok) {
+    return NextResponse.json({ error: inviteAuthorization.error }, { status: inviteAuthorization.status });
   }
 
   try {
