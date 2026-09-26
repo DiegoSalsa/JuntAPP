@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import { deviceKey } from '@/lib/device-key';
 
 type PushState = 'checking' | 'unsupported' | 'ios-install' | 'available' | 'subscribed' | 'denied' | 'error' | 'unconfigured';
 type Platform = 'ios' | 'android' | 'desktop' | 'unknown';
@@ -27,16 +28,8 @@ function currentPlatform(): Platform {
 }
 
 function isStandalone() {
-  return window.matchMedia('(display-mode: standalone)').matches
+  return (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches)
     || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
-}
-
-function deviceKey() {
-  const stored = window.localStorage.getItem('juntapp-device-key');
-  if (stored) return stored;
-  const created = crypto.randomUUID();
-  window.localStorage.setItem('juntapp-device-key', created);
-  return created;
 }
 
 async function saveSubscription(subscription: PushSubscription, key: string, platform: Platform, installed: boolean) {
@@ -80,9 +73,18 @@ export default function InicioAlerts({ urgent, isDirigente }: { urgent?: string;
   }, []);
 
   useEffect(() => {
-    const detectedPlatform = currentPlatform();
-    const detectedInstalled = isStandalone();
-    const detectedKey = deviceKey();
+    let detectedPlatform: Platform = 'unknown';
+    let detectedInstalled = false;
+    let detectedKey = '';
+    try {
+      detectedPlatform = currentPlatform();
+      detectedInstalled = isStandalone();
+      detectedKey = deviceKey();
+    } catch (error) {
+      console.error('[inicio] Optional device setup failed', error);
+      queueMicrotask(() => setPushState('error'));
+      return;
+    }
     queueMicrotask(() => {
       setPlatform(detectedPlatform);
       setInstalled(detectedInstalled);
@@ -102,8 +104,8 @@ export default function InicioAlerts({ urgent, isDirigente }: { urgent?: string;
       setInstallPrompt(null);
       delete window.__juntAppInstallPrompt;
       setCenterMessage('JuntAPP quedó instalada en este dispositivo.');
-      void saveDeviceState(detectedKey, detectedPlatform, true, Notification.permission === 'granted');
-      void refreshStatus();
+      void saveDeviceState(detectedKey, detectedPlatform, true, typeof Notification !== 'undefined' && Notification.permission === 'granted').catch((error) => console.error('[inicio] Device registration failed', error));
+      void refreshStatus().catch((error) => console.error('[inicio] Push status unavailable', error));
     };
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
     window.addEventListener('juntapp-install-available', onInstallAvailable);
@@ -111,14 +113,18 @@ export default function InicioAlerts({ urgent, isDirigente }: { urgent?: string;
 
     let cancelled = false;
     async function inspectPush() {
-      if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || typeof PushManager === 'undefined') {
         if (!cancelled) setPushState('unsupported');
         return;
       }
       if (detectedPlatform === 'ios' && !detectedInstalled) {
         if (!cancelled) setPushState('ios-install');
-        await saveDeviceState(detectedKey, detectedPlatform, false, false);
-        await refreshStatus();
+        try {
+          await saveDeviceState(detectedKey, detectedPlatform, false, false);
+          await refreshStatus();
+        } catch (error) {
+          console.error('[inicio] Push status unavailable', error);
+        }
         return;
       }
       try {
@@ -147,7 +153,8 @@ export default function InicioAlerts({ urgent, isDirigente }: { urgent?: string;
           await saveDeviceState(detectedKey, detectedPlatform, detectedInstalled, false);
         }
         await refreshStatus();
-      } catch {
+      } catch (error) {
+        console.error('[inicio] Push setup failed', error);
         if (!cancelled) setPushState('error');
       }
     }
@@ -171,11 +178,16 @@ export default function InicioAlerts({ urgent, isDirigente }: { urgent?: string;
         : 'Abre el menú de tu navegador y elige “Instalar JuntAPP” o “Crear acceso directo”.');
       return;
     }
-    await installPrompt.prompt();
-    const choice = await installPrompt.userChoice;
-    if (choice.outcome === 'dismissed') setCenterMessage('Puedes instalar JuntAPP más tarde desde este mismo botón.');
-    setInstallPrompt(null);
-    delete window.__juntAppInstallPrompt;
+    try {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      if (choice.outcome === 'dismissed') setCenterMessage('Puedes instalar JuntAPP más tarde desde este mismo botón.');
+      setInstallPrompt(null);
+      delete window.__juntAppInstallPrompt;
+    } catch (error) {
+      console.error('[inicio] Install prompt failed', error);
+      setCenterMessage('No fue posible instalar JuntAPP desde este navegador.');
+    }
   }
 
   async function activateNotifications() {
@@ -204,24 +216,36 @@ export default function InicioAlerts({ urgent, isDirigente }: { urgent?: string;
 
   async function deactivateNotifications() {
     if (!key || !('serviceWorker' in navigator)) return;
-    const registration = await navigator.serviceWorker.getRegistration();
-    const subscription = await registration?.pushManager.getSubscription();
-    if (subscription) {
-      await fetch('/api/notifications/push/subscriptions', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: subscription.endpoint, deviceKey: key }) });
-      await subscription.unsubscribe();
+    try {
+      const registration = await navigator.serviceWorker.getRegistration();
+      const subscription = await registration?.pushManager.getSubscription();
+      if (subscription) {
+        await fetch('/api/notifications/push/subscriptions', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: subscription.endpoint, deviceKey: key }) });
+        await subscription.unsubscribe();
+      }
+      await saveDeviceState(key, platform, installed, false);
+      setPushState('available');
+      setCenterMessage('Notificaciones desactivadas en este dispositivo.');
+      await refreshStatus();
+    } catch (error) {
+      console.error('[inicio] Push deactivation failed', error);
+      setPushState('error');
+      setCenterMessage('No fue posible desactivar las notificaciones. Intenta nuevamente.');
     }
-    await saveDeviceState(key, platform, installed, false);
-    setPushState('available');
-    setCenterMessage('Notificaciones desactivadas en este dispositivo.');
-    await refreshStatus();
   }
 
   async function retryJob(jobId: string) {
     setRetrying(jobId);
-    const response = await fetch('/api/notifications/push/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId }) });
-    setCenterMessage(response.ok ? 'Reintento procesado.' : 'No fue posible reintentar el envío.');
-    setRetrying(null);
-    await refreshStatus();
+    try {
+      const response = await fetch('/api/notifications/push/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId }) });
+      setCenterMessage(response.ok ? 'Reintento procesado.' : 'No fue posible reintentar el envío.');
+      await refreshStatus();
+    } catch (error) {
+      console.error('[inicio] Push retry failed', error);
+      setCenterMessage('No fue posible reintentar el envío.');
+    } finally {
+      setRetrying(null);
+    }
   }
 
   const installLabel = installed ? 'Instalada' : platform === 'ios' ? 'Ver guía visual' : installPrompt ? 'Instalar JuntAPP' : 'Cómo instalar';
@@ -235,7 +259,7 @@ export default function InicioAlerts({ urgent, isDirigente }: { urgent?: string;
       <header className="notification-center-head"><div><span className="notification-center-kicker">JuntAPP en tu bolsillo</span><h3 id="notification-center-title">Instalación y notificaciones</h3><p>Instala una vez y recibe los avisos oficiales aunque JuntAPP esté cerrada.</p></div><span className={`notification-health ${pushState === 'subscribed' ? 'active' : ''}`}><i />{pushState === 'subscribed' ? 'Este dispositivo está conectado' : 'Falta completar la activación'}</span></header>
       <div className="notification-setup-grid">
         <article className={`setup-card ${installed ? 'complete' : ''}`}><div className="setup-card-icon"><InstallIcon /></div><div className="setup-card-copy"><span className="setup-eyebrow">Acceso rápido</span><h4>Instala JuntAPP</h4><p>{installed ? 'Se abre como una app y ya está disponible desde tu pantalla de inicio.' : platform === 'ios' ? 'Te mostramos visualmente dónde tocar en tu iPhone o iPad.' : 'Ábrela como una app, sin escribir la dirección cada vez.'}</p></div><button className={`btn ${installed ? 'btn-ghost' : 'btn-primary'}`} disabled={installed} onClick={() => void installApp()}>{installed ? '✓ Instalada' : installLabel}</button></article>
-        <article className={`setup-card ${pushState === 'subscribed' ? 'complete' : ''}`}><div className="setup-card-icon"><BellIcon /></div><div className="setup-card-copy"><span className="setup-eyebrow">Avisos oficiales</span><h4>Activa las notificaciones</h4><p>{pushState === 'subscribed' ? 'Recibirás comunicados, consultas, asambleas y novedades de tu junta.' : pushState === 'ios-install' ? 'En iPhone se activan después de instalar JuntAPP.' : pushState === 'denied' ? 'El navegador las bloqueó; debes habilitarlas en la configuración del sitio.' : 'Tú decides: el permiso solo se solicita cuando presionas el botón.'}</p></div>{pushState === 'subscribed' ? <button className="btn btn-ghost" onClick={() => void deactivateNotifications()}>Desactivar aquí</button> : <button className="btn btn-primary" disabled={['checking', 'unsupported', 'unconfigured', 'ios-install'].includes(pushState)} onClick={() => void activateNotifications()}>{pushLabel}</button>}</article>
+        <article className={`setup-card ${pushState === 'subscribed' ? 'complete' : ''}`}><div className="setup-card-icon"><BellIcon /></div><div className="setup-card-copy"><span className="setup-eyebrow">Avisos oficiales</span><h4>Activa las notificaciones</h4><p>{pushState === 'subscribed' ? 'Recibirás comunicados, consultas, asambleas y novedades de tu junta.' : pushState === 'unsupported' ? 'Las notificaciones no son compatibles con este navegador. Puedes seguir usando JuntAPP normalmente.' : pushState === 'ios-install' ? 'En iPhone se activan después de instalar JuntAPP.' : pushState === 'denied' ? 'El navegador las bloqueó; debes habilitarlas en la configuración del sitio.' : 'Tú decides: el permiso solo se solicita cuando presionas el botón.'}</p></div>{pushState === 'subscribed' ? <button className="btn btn-ghost" onClick={() => void deactivateNotifications()}>Desactivar aquí</button> : <button className="btn btn-primary" disabled={['checking', 'unsupported', 'unconfigured', 'ios-install'].includes(pushState)} onClick={() => void activateNotifications()}>{pushLabel}</button>}</article>
       </div>
       {centerMessage && <p className="notification-center-message" role="status">{centerMessage}</p>}
 

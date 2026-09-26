@@ -1,16 +1,24 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import OriginalDashboardShell from '@/components/original/OriginalDashboardShell';
-import DashboardBodyState from '@/components/original/DashboardBodyState';
 import { juntaHasActiveAccess } from '@/lib/junta-billing';
 import { expireJuntaTrialIfNeeded } from '@/lib/junta-trial';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) {
+    if (authError.name === 'AuthSessionMissingError' || authError.status === 401 || authError.status === 403 || authError.code === 'refresh_token_not_found') redirect('/login');
+    console.error('[dashboard] Authentication unavailable', { route: 'dashboard', code: authError.code });
+    throw new Error('No fue posible verificar la sesión.');
+  }
   if (!user) redirect('/login');
 
-  const { data: profile } = await supabase.from('profiles').select('*, juntas(*)').eq('id', user.id).single();
+  const { data: profile, error: profileError } = await supabase.from('profiles').select('*, juntas(*)').eq('id', user.id).single();
+  if (profileError) {
+    console.error('[dashboard] Profile unavailable', { route: 'dashboard', code: profileError.code });
+    throw new Error('No fue posible cargar el perfil.');
+  }
   if (!profile) redirect('/login');
   const rawJunta = Array.isArray(profile.juntas) ? profile.juntas[0] : profile.juntas;
   if (!rawJunta) redirect('/registro/pago');
@@ -20,7 +28,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <>
-      <DashboardBodyState role={profile.role} />
       <OriginalDashboardShell profile={profile} junta={junta} trialEndsAt={trialEndsAt}>{children}</OriginalDashboardShell>
     </>
   );

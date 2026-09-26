@@ -53,13 +53,28 @@ export default function OriginalDashboardShell({ profile, junta, trialEndsAt, ch
   useEffect(() => {
     if (profile.role === 'dirigente' && junta?.subscription_plan === 'web' && pathname !== '/mi-pagina') router.replace('/mi-pagina');
     const supabase = createClient();
-    void supabase.from('notifications').select('*').eq('user_id', profile.id).order('date', { ascending: false }).limit(10).then(({ data }) => setNotifications(data ?? []));
+    async function loadNotifications() {
+      try {
+        const { data, error } = await supabase.from('notifications').select('*').eq('user_id', profile.id).order('date', { ascending: false }).limit(10);
+        if (error) {
+          console.error('[dashboard] Notifications unavailable', { route: pathname, code: error.code });
+          return;
+        }
+        setNotifications(data ?? []);
+      } catch (error) {
+        console.error('[dashboard] Notifications unavailable', { route: pathname, error });
+      }
+    }
+    void loadNotifications();
     const channel = supabase.channel(`notifications:${profile.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` }, (payload) => setNotifications((current) => [payload.new as Notification, ...current].slice(0, 10))).subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [junta?.subscription_plan, pathname, profile.id, profile.role, router]);
 
   function toggleCollapsed() {
-    setCollapsed((value) => { localStorage.setItem('juntapp_sidebar_collapsed', String(!value)); return !value; });
+    setCollapsed((value) => {
+      try { localStorage.setItem('juntapp_sidebar_collapsed', String(!value)); } catch { /* Sidebar state is optional. */ }
+      return !value;
+    });
   }
 
   async function logout() {
