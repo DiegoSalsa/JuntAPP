@@ -143,9 +143,15 @@ async function runCase(browserType, name, initScript, options = {}) {
       await page.getByText('Las notificaciones no son compatibles', { exact: false }).waitFor();
     } else {
       await page.getByText('En iPhone se activan después de instalar JuntAPP.').waitFor();
-      assert.equal(await page.getByRole('button', { name: 'Ver guía visual' }).isVisible(), true);
+      await page.getByRole('button', { name: 'Ver guía visual' }).click();
+      await page.getByRole('dialog', { name: 'Lleva JuntAPP a tu iPhone' }).waitFor();
+      await page.waitForFunction(() => [...document.querySelectorAll('.install-guide-modal img')].length === 2
+        && [...document.querySelectorAll('.install-guide-modal img')].every((image) => image.complete && image.naturalWidth > 0));
+      await page.getByRole('button', { name: 'Cerrar guía' }).click();
+      assert.equal(await page.locator('.app-layout').isVisible(), true, `${name}: dashboard hidden after iOS guide`);
       assert.equal(await page.getByRole('button', { name: 'Activar notificaciones' }).isDisabled(), true, `${name}: Push activated before installation`);
-      assert.equal(await page.evaluate(() => window.__iosRegisterCalls), 0, `${name}: Push registration attempted before installation`);
+      assert.equal(await page.evaluate(() => window.__iosPushBootstrapCalls), 0, `${name}: Push setup attempted before installation`);
+      assert.equal(await page.evaluate(() => window.__iosServiceWorkerUrls.every((url) => url === '/sw.js')), true, `${name}: unexpected Service Worker URL`);
       assert.equal(await page.evaluate(() => window.__iosPushPermissionCalls), 0, `${name}: Push permission requested before installation`);
       assert.ok(deviceRegistrations.some((registration) => registration.platform === 'ios' && registration.installationStatus === 'browser'), `${name}: app did not detect platform=ios`);
     }
@@ -202,6 +208,24 @@ async function runCase(browserType, name, initScript, options = {}) {
   await browser.close();
 }
 
+function simulateIosBrowser() {
+  window.__iosServiceWorkerUrls = [];
+  window.__iosPushBootstrapCalls = 0;
+  window.__iosPushPermissionCalls = 0;
+  Object.defineProperty(window, 'Notification', { value: { permission: 'default', requestPermission: () => { window.__iosPushPermissionCalls++; throw new Error('Push must wait for installation'); } }, configurable: true });
+  Object.defineProperty(window, 'PushManager', { value: function PushManager() {}, configurable: true });
+  Object.defineProperty(navigator, 'serviceWorker', { value: {
+    register: (url) => { window.__iosServiceWorkerUrls.push(url); return Promise.reject(new Error('Mock Service Worker failure')); },
+    getRegistration: () => { window.__iosPushBootstrapCalls++; throw new Error('Push must wait for installation'); },
+  }, configurable: true });
+}
+
+function simulateIosStandaloneWithoutPush() {
+  Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
+  Object.defineProperty(window, 'Notification', { value: undefined, configurable: true });
+  Object.defineProperty(window, 'PushManager', { value: undefined, configurable: true });
+}
+
 try {
   if (production) await buildProduction();
   startApp();
@@ -216,6 +240,8 @@ try {
         getRegistration: () => Promise.reject(new Error('Mock registration failure')),
       }, configurable: true });
     }, { serviceWorkerFailure: true, ssr: true });
+    await runCase(webkit, 'production WebKit iPhone browser', simulateIosBrowser, { ios: true, ssr: true });
+    await runCase(webkit, 'production WebKit iPhone standalone without Push', simulateIosStandaloneWithoutPush, { ios: true, iosStandalone: true, unsupported: true });
   } else {
   assert.equal((await (await fetch(`${appUrl}/manifest.webmanifest`)).json()).start_url, '/inicio');
   const browser = await chromium.launch();
@@ -238,18 +264,8 @@ try {
   await runCase(chromium, 'localStorage blocked', () => { Storage.prototype.getItem = () => { throw new Error('Storage blocked'); }; Storage.prototype.setItem = () => { throw new Error('Storage blocked'); }; });
   await runCase(chromium, 'Push and Notification unavailable', () => { Object.defineProperty(window, 'Notification', { value: undefined, configurable: true }); Object.defineProperty(window, 'PushManager', { value: undefined, configurable: true }); }, { unsupported: true });
   await runCase(chromium, 'Service Worker registration fails in dev', () => { Object.defineProperty(navigator, 'serviceWorker', { value: { register: () => Promise.reject(new Error('Mock registration failure')), getRegistration: () => Promise.reject(new Error('Mock registration failure')) }, configurable: true }); });
-  await runCase(webkit, 'WebKit iPhone browser', () => {
-    window.__iosRegisterCalls = 0;
-    window.__iosPushPermissionCalls = 0;
-    Object.defineProperty(window, 'Notification', { value: { permission: 'default', requestPermission: () => { window.__iosPushPermissionCalls++; throw new Error('Push must wait for installation'); } }, configurable: true });
-    Object.defineProperty(window, 'PushManager', { value: function PushManager() {}, configurable: true });
-    Object.defineProperty(navigator, 'serviceWorker', { value: { register: () => { window.__iosRegisterCalls++; throw new Error('Push must wait for installation'); } }, configurable: true });
-  }, { ios: true, ssr: true });
-  await runCase(webkit, 'WebKit iPhone standalone without Push', () => {
-    Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
-    Object.defineProperty(window, 'Notification', { value: undefined, configurable: true });
-    Object.defineProperty(window, 'PushManager', { value: undefined, configurable: true });
-  }, { ios: true, iosStandalone: true, unsupported: true });
+  await runCase(webkit, 'WebKit iPhone browser', simulateIosBrowser, { ios: true, ssr: true });
+  await runCase(webkit, 'WebKit iPhone standalone without Push', simulateIosStandaloneWithoutPush, { ios: true, iosStandalone: true, unsupported: true });
   }
 } finally {
   app?.kill();
