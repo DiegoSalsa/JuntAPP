@@ -12,7 +12,6 @@ const viewports = [
 
 const browser = await chromium.launch({
   headless: true,
-  executablePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
 });
 
 try {

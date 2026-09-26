@@ -101,7 +101,12 @@ Pruebas específicas:
 ```bash
 npm run test:notifications:db
 npm run smoke:notifications
+npm run test:mobile-startup
 ```
+
+`test:mobile-startup` levanta un Supabase simulado y comprueba login, navegación y degradación de PWA en Chromium y WebKit. Instala los navegadores de la versión local de Playwright con `node node_modules/playwright-core/cli.js install chromium webkit` antes de ejecutarlo.
+
+Para comprobar un preview, define `JUNTAPP_TEST_URL`, `JUNTAPP_TEST_EMAIL` y `JUNTAPP_TEST_PASSWORD` con una cuenta de prueba y ejecuta `npm run smoke:mobile-preview`.
 
 ## Propuestas de consulta
 
@@ -134,6 +139,8 @@ La cabecera `x-juntapp-signature` debe contener el HMAC SHA-256 hexadecimal del 
 ## Producción
 
 En Vercel configura `juntapp-next` como **Root Directory**, carga las variables anteriores y usa el comando de build predeterminado (`npm run build`). Antes del deploy aplica la migración multi-tenant en Supabase.
+
+El `vercel.json` de la raíz del repositorio contiene un rewrite de la SPA antigua a `/index.html`. Si el proyecto de Vercel apunta por error a la raíz en lugar de `juntapp-next`, ese rewrite puede impedir que se sirvan las rutas Next.js. Mantén `juntapp-next` como Root Directory al desplegar este hotfix.
 
 En Supabase Auth agrega `https://tu-dominio/aceptar-invitacion` a las URLs de redirección permitidas para que los socios invitados puedan crear su contraseña.
 

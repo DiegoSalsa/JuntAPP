@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chromium } from 'playwright-core';
+import { chromium, webkit } from 'playwright-core';
 import { createClient } from '@supabase/supabase-js';
 
 const baseUrl = process.env.JUNTAPP_TEST_URL ?? 'http://localhost:3000';
@@ -12,7 +12,8 @@ const viewports = [
   { name: 'desktop', width: 1366, height: 900 },
   { name: 'mobile', width: 390, height: 844 },
 ];
-const browser = await chromium.launch({ headless: true, executablePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe' });
+const browser = await chromium.launch({ headless: true });
+let iosBrowser;
 
 async function login(page, user) {
   await page.goto(`${baseUrl}/login`);
@@ -50,7 +51,8 @@ try {
 
   const iosKey = 'iphone-notifications-visual-test';
   testKeys.push(iosKey);
-  const ios = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1' });
+  iosBrowser = await webkit.launch({ headless: true });
+  const ios = await iosBrowser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1' });
   await ios.addInitScript((storedKey) => localStorage.setItem('juntapp-device-key', storedKey), iosKey);
   const page = await ios.newPage();
   await login(page, users[1]);
@@ -78,6 +80,7 @@ try {
   console.log(JSON.stringify({ ui: 'OK', viewport: 'android', iphoneGuideHidden: true, overflow: androidOverflow }));
   await android.close();
 } finally {
+  if (iosBrowser) await iosBrowser.close();
   await browser.close();
   if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY && testKeys.length) {
     const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });

@@ -19,7 +19,13 @@ export default function ServiceWorkerRegistrar() {
     };
     window.addEventListener('beforeinstallprompt', captureInstallPrompt);
     if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
-      void navigator.serviceWorker.register('/sw.js');
+      try {
+        void navigator.serviceWorker.register('/sw.js').catch((error) => {
+          console.error('[pwa] Service Worker registration failed', error);
+        });
+      } catch (error) {
+        console.error('[pwa] Service Worker registration failed', error);
+      }
     }
     return () => window.removeEventListener('beforeinstallprompt', captureInstallPrompt);
   }, []);

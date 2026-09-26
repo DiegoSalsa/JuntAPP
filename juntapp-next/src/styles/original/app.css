@@ -2378,12 +2378,6 @@
    JuntAPP Production Upgrades: Auth, Charts, Storage, and Push
    ========================================================================== */
 
-/* --- Logged Out View Blocks --- */
-body.logged-out .app-layout,
-body.logged-out .demo-toolbar {
-  display: none !important;
-}
-
 /* --- Authentication Screen --- */
 .auth-overlay {
   position: fixed;
@@ -2690,24 +2684,6 @@ body.logged-out .demo-toolbar {
 /* ==========================================================================
    JuntAPP Corporate Landing Page & Orange Theme Styles
    ========================================================================== */
-
-/* Layout Toggle Selection */
-body.logged-out .app-layout,
-body.logged-out .demo-toolbar {
-  display: none !important;
-}
-
-body.logged-out .corporate-landing {
-  display: block;
-}
-
-body:not(.logged-out) .corporate-landing {
-  display: none !important;
-}
-
-body:not(.logged-out) .app-layout {
-  display: grid;
-}
 
 /* Orange Button Utility Override */
 .btn-orange {
