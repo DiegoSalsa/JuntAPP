@@ -106,6 +106,8 @@ npm run test:mobile-startup
 
 `test:mobile-startup` levanta un Supabase simulado y comprueba login, navegación y degradación de PWA en Chromium y WebKit. Instala los navegadores de la versión local de Playwright con `node node_modules/playwright-core/cli.js install chromium webkit` antes de ejecutarlo.
 
+Para comprobar un preview, define `JUNTAPP_TEST_URL`, `JUNTAPP_TEST_EMAIL` y `JUNTAPP_TEST_PASSWORD` con una cuenta de prueba y ejecuta `npm run smoke:mobile-preview`.
+
 ## Propuestas de consulta
 
 Los socios pueden enviar propuestas con contexto y alternativas. La propuesta permanece pendiente y solo se convierte en una consulta activa cuando la directiva la aprueba. Los rechazos exigen un motivo y tanto la revisión como la consulta resultante quedan vinculadas para auditoría.
