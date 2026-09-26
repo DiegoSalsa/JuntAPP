@@ -13,6 +13,10 @@ function withTimeout<T>(operation: PromiseLike<T>, timeoutMs: number) {
   ]);
 }
 
+function isAuthNetworkError(message: string) {
+  return /failed to fetch|load failed|networkerror|network request failed|could not resolve hostname|err_name_not_resolved/i.test(message);
+}
+
 export default function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,7 +41,9 @@ export default function LoginForm() {
       if (authError) {
         setError(authError.message === 'Invalid login credentials'
           ? 'Credenciales inválidas. Verifica tu correo y contraseña.'
-          : authError.message);
+          : isAuthNetworkError(authError.message)
+            ? 'No se pudo conectar con el servicio de acceso. Intenta nuevamente en unos segundos.'
+            : authError.message);
         return;
       }
 
