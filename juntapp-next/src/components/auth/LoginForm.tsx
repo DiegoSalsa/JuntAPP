@@ -4,6 +4,15 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
+const AUTH_REQUEST_TIMEOUT_MS = 15000;
+
+function withTimeout<T>(operation: PromiseLike<T>, timeoutMs: number) {
+  return Promise.race([
+    Promise.resolve(operation),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('AUTH_REQUEST_TIMEOUT')), timeoutMs)),
+  ]);
+}
+
 export default function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,10 +29,10 @@ export default function LoginForm() {
 
     try {
       const supabase = createClient();
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await withTimeout(supabase.auth.signInWithPassword({
         email,
         password,
-      });
+      }), AUTH_REQUEST_TIMEOUT_MS);
 
       if (authError) {
         setError(authError.message === 'Invalid login credentials'
@@ -32,12 +41,15 @@ export default function LoginForm() {
         return;
       }
 
-      const { data: profile } = await supabase.from('profiles').select('role, juntas(subscription_plan)').eq('id', authData.user.id).single();
+      const { data: profile } = await withTimeout(supabase.from('profiles').select('role, juntas(subscription_plan)').eq('id', authData.user.id).single(), AUTH_REQUEST_TIMEOUT_MS);
       const junta = Array.isArray(profile?.juntas) ? profile.juntas[0] : profile?.juntas;
       router.push(profile?.role === 'dirigente' && junta?.subscription_plan === 'web' ? '/mi-pagina' : '/inicio');
       router.refresh();
-    } catch {
-      setError('Error de conexión. Intenta nuevamente.');
+    } catch (loginError) {
+      const message = loginError instanceof Error && loginError.message === 'AUTH_REQUEST_TIMEOUT'
+        ? 'El servicio de acceso está tardando demasiado. Revisa tu conexión e intenta nuevamente.'
+        : 'No se pudo conectar con el servicio de acceso. Intenta nuevamente en unos segundos.';
+      setError(message);
     } finally {
       setLoading(false);
     }
