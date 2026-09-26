@@ -248,6 +248,9 @@ try {
   const anonymous = await browser.newPage();
   await anonymous.goto(appUrl);
   assert.equal(await anonymous.locator('.corporate-landing').isVisible(), true, 'Public landing hidden');
+  await anonymous.getByRole('link', { name: 'Acceder', exact: true }).first().click();
+  await anonymous.waitForURL('**/login');
+  assert.equal(await anonymous.locator('#email').isVisible(), true, 'Landing Acceder did not open login');
   await anonymous.goto(`${appUrl}/registro`);
   assert.equal((await anonymous.locator('body').innerText()).length > 50, true, 'Registration hidden');
   await anonymous.goto(`${appUrl}/superadmin/login`);
