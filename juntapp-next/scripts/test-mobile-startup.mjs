@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { chromium, webkit } from 'playwright-core';
+import { chromium, devices, webkit } from 'playwright-core';
+
+const production = process.argv.includes('--production');
+const iPhone = devices['iPhone 13'];
+assert.ok(iPhone, 'Playwright iPhone 13 descriptor is unavailable');
 
 const junta = { id: '11111111-1111-4111-8111-111111111111', name: 'Junta de prueba', slug: 'prueba', subscription_status: 'authorized', subscription_plan: 'juntapp', billing_mode: 'subscription' };
 const users = {
@@ -60,13 +64,28 @@ await once(mock, 'listening');
 const mockPort = mock.address().port;
 const appPort = 43000 + Math.floor(Math.random() * 10000);
 const appUrl = `http://127.0.0.1:${appPort}`;
-const app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '-p', String(appPort), '-H', '127.0.0.1'], {
-  env: { ...process.env, NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${mockPort}`, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'mock-anon-key', SUPABASE_SERVICE_ROLE_KEY: 'mock-service-role', NEXT_TELEMETRY_DISABLED: '1' },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
+const testEnv = { ...process.env, NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${mockPort}`, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'mock-anon-key', SUPABASE_SERVICE_ROLE_KEY: 'mock-service-role', NEXT_TELEMETRY_DISABLED: '1' };
+let app;
 let serverOutput = '';
-app.stdout.on('data', (chunk) => { serverOutput += chunk; });
-app.stderr.on('data', (chunk) => { serverOutput += chunk; });
+
+async function buildProduction() {
+  const build = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'build'], { env: testEnv, stdio: ['ignore', 'pipe', 'pipe'] });
+  let output = '';
+  build.stdout.on('data', (chunk) => { output += chunk; });
+  build.stderr.on('data', (chunk) => { output += chunk; });
+  const [code] = await once(build, 'close');
+  assert.equal(code, 0, `Production build failed:\n${output.slice(-5000)}`);
+  console.log('PASS production build with mock Supabase URL');
+}
+
+function startApp() {
+  app = spawn(process.execPath, ['node_modules/next/dist/bin/next', production ? 'start' : 'dev', '-p', String(appPort), '-H', '127.0.0.1'], {
+    env: testEnv,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  app.stdout.on('data', (chunk) => { serverOutput += chunk; });
+  app.stderr.on('data', (chunk) => { serverOutput += chunk; });
+}
 
 async function waitForApp() {
   for (let i = 0; i < 100; i++) {
@@ -78,7 +97,9 @@ async function waitForApp() {
 
 async function runCase(browserType, name, initScript, options = {}) {
   const browser = await browserType.launch({ headless: true });
-  const context = await browser.newContext({ viewport: { width: options.desktop ? 1366 : 390, height: options.desktop ? 900 : 844 }, isMobile: !options.desktop, hasTouch: !options.desktop });
+  const context = await browser.newContext(options.ios
+    ? { ...iPhone, viewport: { width: 390, height: 844 } }
+    : { viewport: { width: options.desktop ? 1366 : 390, height: options.desktop ? 900 : 844 }, isMobile: !options.desktop, hasTouch: !options.desktop });
   await context.route(`http://127.0.0.1:${mockPort}/rest/v1/notifications**`, (route) => {
     if (route.request().method() === 'OPTIONS') return route.continue();
     return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': appUrl, 'access-control-allow-credentials': 'true', 'content-type': 'application/json' }, body: '[]' });
@@ -86,6 +107,12 @@ async function runCase(browserType, name, initScript, options = {}) {
   if (initScript) await context.addInitScript(initScript);
   const page = await context.newPage();
   const pageErrors = [];
+  const deviceRegistrations = [];
+  page.on('request', (request) => {
+    if (request.url().endsWith('/api/notifications/devices') && request.method() === 'POST') {
+      deviceRegistrations.push(JSON.parse(request.postData()));
+    }
+  });
   page.on('pageerror', (error) => { pageErrors.push(error.message); if (process.env.DEBUG_MOBILE_TEST) console.log('PAGE ERROR', error.stack); });
   if (process.env.DEBUG_MOBILE_TEST && name.includes('WebKit')) {
     page.on('request', (request) => { if (request.url().includes('auth/v1')) console.log('AUTH REQUEST', request.url()); });
@@ -106,7 +133,29 @@ async function runCase(browserType, name, initScript, options = {}) {
   await page.getByRole('heading', { name: 'Panel de Inicio' }).waitFor({ timeout: 30000 });
   assert.equal(await page.locator('.app-layout').isVisible(), true, `${name}: dashboard hidden`);
   assert.equal(await page.getByRole('heading', { name: 'Instalación y notificaciones' }).isVisible(), true);
+  if (options.ios) {
+    const device = await page.evaluate(() => ({ userAgent: navigator.userAgent, standalone: navigator.standalone === true, touch: 'ontouchstart' in window }));
+    assert.match(device.userAgent, /iphone|ipad|ipod/i, `${name}: iOS user agent missing`);
+    assert.equal(device.touch, true, `${name}: touch missing`);
+    assert.equal(device.standalone, Boolean(options.iosStandalone), `${name}: standalone mode mismatch`);
+    if (options.iosStandalone) {
+      await page.getByRole('button', { name: '✓ Instalada' }).waitFor();
+      await page.getByText('Las notificaciones no son compatibles', { exact: false }).waitFor();
+    } else {
+      await page.getByText('En iPhone se activan después de instalar JuntAPP.').waitFor();
+      assert.equal(await page.getByRole('button', { name: 'Ver guía visual' }).isVisible(), true);
+      assert.equal(await page.getByRole('button', { name: 'Activar notificaciones' }).isDisabled(), true, `${name}: Push activated before installation`);
+      assert.equal(await page.evaluate(() => window.__iosRegisterCalls), 0, `${name}: Push registration attempted before installation`);
+      assert.equal(await page.evaluate(() => window.__iosPushPermissionCalls), 0, `${name}: Push permission requested before installation`);
+      assert.ok(deviceRegistrations.some((registration) => registration.platform === 'ios' && registration.installationStatus === 'browser'), `${name}: app did not detect platform=ios`);
+    }
+  }
+  if (options.serviceWorkerFailure) {
+    await page.waitForFunction(() => window.__swRegisterAttempts?.includes('/sw.js'));
+    assert.equal(await page.evaluate(() => window.__swRegisterAttempts.every((url) => url === '/sw.js')), true, `${name}: unexpected Service Worker URL`);
+  }
   const startPage = await context.newPage();
+  startPage.on('pageerror', (error) => { pageErrors.push(error.message); });
   await startPage.goto(`${appUrl}/inicio`);
   assert.equal(new URL(startPage.url()).pathname, '/inicio', `${name}: PWA start URL redirected with a valid session`);
   assert.equal(await startPage.locator('.app-layout').isVisible(), true);
@@ -143,6 +192,10 @@ async function runCase(browserType, name, initScript, options = {}) {
     }
   }
   assert.deepEqual(pageErrors, [], `${name}: client errors`);
+  if (options.serviceWorkerFailure) {
+    assert.deepEqual(await page.evaluate(() => window.__swUnhandledRejections), [], `${name}: unhandled Service Worker rejection`);
+    console.log('PASS production Service Worker register(/sw.js) attempted and rejection handled');
+  }
   console.log(`PASS ${name}: login, /inicio, navigation, overflow=${overflow}`);
   await startPage.close();
   await context.close();
@@ -150,7 +203,20 @@ async function runCase(browserType, name, initScript, options = {}) {
 }
 
 try {
+  if (production) await buildProduction();
+  startApp();
   await waitForApp();
+  if (production) {
+    await runCase(chromium, 'production Service Worker registration fails', () => {
+      window.__swRegisterAttempts = [];
+      window.__swUnhandledRejections = [];
+      window.addEventListener('unhandledrejection', (event) => { window.__swUnhandledRejections.push(String(event.reason)); });
+      Object.defineProperty(navigator, 'serviceWorker', { value: {
+        register: (url) => { window.__swRegisterAttempts.push(url); return Promise.reject(new Error('Mock registration failure')); },
+        getRegistration: () => Promise.reject(new Error('Mock registration failure')),
+      }, configurable: true });
+    }, { serviceWorkerFailure: true, ssr: true });
+  } else {
   assert.equal((await (await fetch(`${appUrl}/manifest.webmanifest`)).json()).start_url, '/inicio');
   const browser = await chromium.launch();
   const anonymous = await browser.newPage();
@@ -171,9 +237,21 @@ try {
   await runCase(chromium, 'all crypto random APIs unavailable', () => { Object.defineProperty(Crypto.prototype, 'randomUUID', { value: undefined, configurable: true }); Object.defineProperty(Crypto.prototype, 'getRandomValues', { value: undefined, configurable: true }); });
   await runCase(chromium, 'localStorage blocked', () => { Storage.prototype.getItem = () => { throw new Error('Storage blocked'); }; Storage.prototype.setItem = () => { throw new Error('Storage blocked'); }; });
   await runCase(chromium, 'Push and Notification unavailable', () => { Object.defineProperty(window, 'Notification', { value: undefined, configurable: true }); Object.defineProperty(window, 'PushManager', { value: undefined, configurable: true }); }, { unsupported: true });
-  await runCase(chromium, 'Service Worker registration fails', () => { Object.defineProperty(navigator, 'serviceWorker', { value: { register: () => Promise.reject(new Error('Mock registration failure')), getRegistration: () => Promise.reject(new Error('Mock registration failure')) }, configurable: true }); });
-  await runCase(webkit, 'WebKit iPhone', null, { ssr: true });
+  await runCase(chromium, 'Service Worker registration fails in dev', () => { Object.defineProperty(navigator, 'serviceWorker', { value: { register: () => Promise.reject(new Error('Mock registration failure')), getRegistration: () => Promise.reject(new Error('Mock registration failure')) }, configurable: true }); });
+  await runCase(webkit, 'WebKit iPhone browser', () => {
+    window.__iosRegisterCalls = 0;
+    window.__iosPushPermissionCalls = 0;
+    Object.defineProperty(window, 'Notification', { value: { permission: 'default', requestPermission: () => { window.__iosPushPermissionCalls++; throw new Error('Push must wait for installation'); } }, configurable: true });
+    Object.defineProperty(window, 'PushManager', { value: function PushManager() {}, configurable: true });
+    Object.defineProperty(navigator, 'serviceWorker', { value: { register: () => { window.__iosRegisterCalls++; throw new Error('Push must wait for installation'); } }, configurable: true });
+  }, { ios: true, ssr: true });
+  await runCase(webkit, 'WebKit iPhone standalone without Push', () => {
+    Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
+    Object.defineProperty(window, 'Notification', { value: undefined, configurable: true });
+    Object.defineProperty(window, 'PushManager', { value: undefined, configurable: true });
+  }, { ios: true, iosStandalone: true, unsupported: true });
+  }
 } finally {
-  app.kill();
+  app?.kill();
   mock.close();
 }

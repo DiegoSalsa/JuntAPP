@@ -9,6 +9,7 @@
     "smoke:treasury": "node scripts/smoke-treasury.mjs",
     "smoke:notifications": "node --env-file=.env.local scripts/smoke-notifications.mjs",
     "test:mobile-startup": "node scripts/test-mobile-startup.mjs",
+    "test:mobile-production": "node scripts/test-mobile-startup.mjs --production",
     "smoke:mobile-preview": "node scripts/smoke-mobile-preview.mjs",
     "dev": "next dev",
     "build": "next build",
