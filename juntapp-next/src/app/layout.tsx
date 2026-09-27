@@ -1,13 +1,15 @@
 import type { Metadata, Viewport } from 'next';
 import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar';
+import { DEFAULT_DESCRIPTION, SITE_URL } from '@/lib/seo/site';
 import './globals.css';
 import '@/styles/original/style.css';
+import '@/styles/original/seo-growth.css';
 import 'driver.js/dist/driver.css';
 
 export const metadata: Metadata = {
-  title: 'JuntAPP — Gestión Vecinal Digital',
-  description: 'Plataforma digital para la gestión y transparencia de Juntas de Vecinos en Chile.',
-  keywords: ['junta de vecinos', 'chile', 'gestión vecinal', 'transparencia', 'consultas comunitarias'],
+  metadataBase: new URL(SITE_URL),
+  title: 'JuntAPP | Software para juntas de vecinos en Chile',
+  description: DEFAULT_DESCRIPTION,
   applicationName: 'JuntAPP',
   manifest: '/manifest.webmanifest?v=rounded-j-20260812',
   appleWebApp: {
