@@ -1,5 +1,5 @@
 import { formatCLP, PLANS } from '@/lib/plans';
-import { absoluteUrl, CONTACT_EMAIL, PUROCODE_URL, SITE_NAME, SITE_URL } from '@/lib/seo/site';
+import { absoluteUrl, CONTACT_EMAIL, PUROCODE_URL, SITE_NAME, SITE_URL, SOFTWARE_ENTITY_DESCRIPTION, SOFTWARE_ID } from '@/lib/seo/site';
 
 export type BreadcrumbItem = { name: string; path: string };
 
@@ -34,13 +34,14 @@ export function websiteSchema() {
   };
 }
 
-export function softwareApplicationSchema(path: string, description: string) {
+export function softwareApplicationSchema() {
   return {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
+    '@id': SOFTWARE_ID,
     name: SITE_NAME,
-    url: absoluteUrl(path),
-    description,
+    url: `${SITE_URL}/`,
+    description: SOFTWARE_ENTITY_DESCRIPTION,
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web',
     inLanguage: 'es-CL',
@@ -54,6 +55,18 @@ export function softwareApplicationSchema(path: string, description: string) {
       description: `${formatCLP(plan.price)} CLP al mes, IVA incluido`,
     })),
     provider: { '@type': 'Organization', name: 'PuroCode', url: PUROCODE_URL },
+  };
+}
+
+export function softwarePageReference(path: string, name: string, description: string) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    url: absoluteUrl(path),
+    name,
+    description,
+    about: { '@id': SOFTWARE_ID },
+    mainEntity: { '@id': SOFTWARE_ID },
   };
 }
 

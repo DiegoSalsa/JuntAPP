@@ -20,7 +20,7 @@ export default function HomeProductMap() {
           <div className="seo-paper">
             <p className="seo-kicker">Mapa del producto</p>
             <h2 id="mapa-juntapp">Elige la tarea de tu directiva</h2>
-            <p>JuntAPP ordena el trabajo de una junta de vecinos en Chile. Estas páginas explican cada módulo con las funciones que existen hoy.</p>
+            <p>Esta página presenta la gestión digital de JuntAPP. El detalle del producto, para quien busca un software, una app o un sistema para su junta, está en la primera ficha.</p>
             <ul className="seo-note-list">
               {links.map((link) => (
                 <li key={link.href}>

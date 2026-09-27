@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { assessCommunityIndexability } from '@/lib/seo/community-indexability';
+import { COMMUNITY_SITE_INDEXING_ENABLED } from '@/lib/seo/site';
 import type { WebsiteContent } from '@/lib/website';
 
 type ListedWebsite = {
@@ -10,6 +11,7 @@ type ListedWebsite = {
 };
 
 export async function listIndexableCommunitySites() {
+  if (!COMMUNITY_SITE_INDEXING_ENABLED) return [];
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return [];

@@ -8,6 +8,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
   }, [error]);
 
   return <html lang="es"><body style={{ margin: 0, fontFamily: 'system-ui, sans-serif' }}>
+    <head><meta name="robots" content="noindex, nofollow" /></head>
     <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, boxSizing: 'border-box', color: '#031636', background: '#f7f6f0' }}>
       <div style={{ maxWidth: 440, textAlign: 'center' }}>
         <h1>No pudimos abrir JuntAPP</h1>

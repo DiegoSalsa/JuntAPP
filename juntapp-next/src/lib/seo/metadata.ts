@@ -36,10 +36,10 @@ export function publicMetadata({
       siteName: SITE_NAME,
       locale: SITE_LOCALE,
       type,
-      images: [{ url: image, alt: 'JuntAPP' }],
+      images: [{ url: image, width: 1200, height: 630, alt: 'JuntAPP. Tu junta de vecinos, 100% digital.' }],
     },
     twitter: {
-      card: 'summary',
+      card: 'summary_large_image',
       title: fullTitle,
       description,
       images: [image],

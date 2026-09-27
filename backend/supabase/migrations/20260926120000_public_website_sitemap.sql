@@ -1,3 +1,9 @@
+-- NO EJECUTAR EN PRODUCCIÓN EN EL PRIMER LANZAMIENTO SEO.
+-- La política de indexabilidad de /sitio/[slug] queda preparada aquí,
+-- pero COMMUNITY_SITE_INDEXING_ENABLED está en false y el sitemap
+-- no llama esta función mientras siga apagada. Todas las páginas
+-- /sitio/[slug] responden noindex hasta una activación explícita.
+--
 -- Lists published community sites so the sitemap can apply the
 -- indexability policy. It does not expose member data. The Next.js
 -- sitemap still drops thin or template pages.

@@ -5,7 +5,7 @@ import RichText from '@/components/seo/RichText';
 import TrackedLink from '@/components/seo/TrackedLink';
 import type { SeoPageModel } from '@/content/seo/types';
 import { formatCLP, PLANS } from '@/lib/plans';
-import { articleSchema, breadcrumbSchema, faqSchema, softwareApplicationSchema } from '@/lib/seo/schema';
+import { articleSchema, breadcrumbSchema, faqSchema, softwareApplicationSchema, softwarePageReference } from '@/lib/seo/schema';
 import { CONTENT_UPDATED, EDITOR_LABEL } from '@/lib/seo/site';
 
 function headingId(value: string) {
@@ -18,7 +18,7 @@ export default function SeoDocument({ page }: { page: SeoPageModel }) {
   const crumbs = [{ name: 'Inicio', path: '/' }, ...page.breadcrumbs, { name: page.h1, path: page.path }];
   const nodes = [
     breadcrumbSchema(crumbs),
-    ...(page.schema === 'software' ? [softwareApplicationSchema(page.path, page.description)] : []),
+    ...(page.schema === 'software' ? [softwareApplicationSchema(), softwarePageReference(page.path, page.h1, page.description)] : []),
     ...(page.schema === 'article' ? [articleSchema({ path: page.path, headline: page.h1, description: page.description, date: CONTENT_UPDATED })] : []),
     ...(page.faqs?.length ? [faqSchema(page.faqs)] : []),
   ].map((node) => {

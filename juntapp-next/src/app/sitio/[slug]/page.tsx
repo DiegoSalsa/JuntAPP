@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import WebsiteRenderer from '@/components/website/WebsiteRenderer';
 import { assessCommunityIndexability } from '@/lib/seo/community-indexability';
 import { publicMetadata } from '@/lib/seo/metadata';
+import { COMMUNITY_SITE_INDEXING_ENABLED } from '@/lib/seo/site';
 import { createClient } from '@/lib/supabase/server';
 import { DEFAULT_CONTENT, DEFAULT_THEME, type WebsiteContent, type WebsiteTemplate, type WebsiteTheme } from '@/lib/website';
 
@@ -35,12 +36,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const content = { ...DEFAULT_CONTENT, ...(page.content ?? {}) };
   const decision = assessCommunityIndexability({ name: page.name, content });
   const path = `/sitio/${slug}`;
+  const indexable = COMMUNITY_SITE_INDEXING_ENABLED && decision.indexable;
   return publicMetadata({
     title: page.name,
-    description: decision.indexable ? summary(content.about) : `Página de ${page.name}, publicada con JuntAPP.`,
+    description: indexable ? summary(content.about) : `Página de ${page.name}, publicada con JuntAPP.`,
     path,
     absoluteTitle: true,
-    index: decision.indexable,
+    index: indexable,
     follow: true,
   });
 }

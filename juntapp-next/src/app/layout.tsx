@@ -8,7 +8,7 @@ import 'driver.js/dist/driver.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: 'JuntAPP | Software para juntas de vecinos en Chile',
+  title: 'JuntAPP | Gestión digital para juntas de vecinos en Chile',
   description: DEFAULT_DESCRIPTION,
   applicationName: 'JuntAPP',
   manifest: '/manifest.webmanifest?v=rounded-j-20260812',

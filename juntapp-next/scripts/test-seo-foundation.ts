@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { assessCommunityIndexability } from '../src/lib/seo/community-indexability';
 import { SEO_PAGES, SITEMAP_PATHS } from '../src/content/seo/registry';
+import { COMMUNITY_SITE_INDEXING_ENABLED, HOME_TITLE, ROBOTS_DISALLOW } from '../src/lib/seo/site';
 import { DEFAULT_CONTENT } from '../src/lib/website';
 
 const blocked = assessCommunityIndexability({
@@ -61,5 +62,25 @@ for (const page of SEO_PAGES) {
 const privatePaths = ['/login', '/registro', '/inicio', '/socios', '/superadmin', '/api'];
 for (const path of privatePaths) assert.equal(SITEMAP_PATHS.some((item) => item.path === path), false, path);
 assert.equal(SITEMAP_PATHS.some((item) => item.path.startsWith('/sitio/')), false);
+
+assert.equal(HOME_TITLE, 'JuntAPP | Gestión digital para juntas de vecinos en Chile');
+assert.equal(HOME_TITLE.toLowerCase().includes('software para juntas'), false);
+assert.equal(SEO_PAGES.find((page) => page.keyword === 'software para juntas de vecinos')?.path, '/software-juntas-de-vecinos');
+assert.equal(SEO_PAGES.filter((page) => page.keyword === 'software para juntas de vecinos').length, 1);
+assert.deepEqual([...ROBOTS_DISALLOW], ['/api/']);
+assert.equal(COMMUNITY_SITE_INDEXING_ENABLED, false);
+
+const socios = SEO_PAGES.find((page) => page.path === '/gestion-socios-junta-de-vecinos');
+const registro = SEO_PAGES.find((page) => page.path === '/recursos/como-llevar-registro-socios-junta-de-vecinos');
+const cuotas = SEO_PAGES.find((page) => page.path === '/recursos/como-cobrar-cuotas-junta-de-vecinos');
+const sociosText = JSON.stringify(socios);
+const registroText = JSON.stringify(registro);
+const cuotasText = JSON.stringify(cuotas);
+assert.equal(sociosText.includes('selección discrecional'), true);
+assert.equal(sociosText.includes('no permite negar el ingreso'), true);
+assert.equal(registroText.includes('no puede ser rechazado por preferencia'), true);
+assert.equal(cuotasText.includes('Cobra por domicilio si así lo decidieron'), false);
+assert.equal(cuotasText.includes('estatutos y acuerdos vigentes'), true);
+assert.equal(cuotasText.includes('no una regla de la Ley 19.418'), true);
 
 console.log(`seo foundation ok: ${SEO_PAGES.length} páginas`);
