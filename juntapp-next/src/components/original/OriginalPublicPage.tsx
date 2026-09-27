@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { originalFragments } from '@/content/original-fragments';
+import { seoEventForHref, trackSeoEvent } from '@/lib/seo/events';
 
 export type OriginalPublicView = 'home' | 'caracteristicas' | 'pricing' | 'faq' | 'sobreNosotros' | 'contacto' | 'legal';
 
@@ -14,6 +15,15 @@ export default function OriginalPublicPage({ view, children }: { view?: Original
     const target = event.target as Element;
     const root = rootRef.current;
     if (!root) return;
+    const anchor = target.closest('a');
+    const eventName = seoEventForHref(anchor?.getAttribute('href'));
+    if (eventName) {
+      trackSeoEvent(eventName, {
+        page: pathname,
+        cta: anchor?.textContent?.trim() || eventName,
+        source_section: 'sitio-publico',
+      });
+    }
 
     if (target.closest('#mobileNavToggleBtn')) {
       root.querySelector('#mobileNavToggleBtn')?.classList.toggle('open');
@@ -95,9 +105,14 @@ export default function OriginalPublicPage({ view, children }: { view?: Original
     const contactForm = root.querySelector<HTMLFormElement>('#landingContactForm');
     listen(contactForm, 'submit', ((event: SubmitEvent) => {
       event.preventDefault();
-      const name = root.querySelector<HTMLInputElement>('#contactName')?.value ?? '';
-      alert(`¡Gracias ${name}! Hemos recibido tu consulta.`);
-      contactForm?.reset();
+      const field = (id: string) => root.querySelector<HTMLInputElement | HTMLTextAreaElement>(`#${id}`)?.value.trim() ?? '';
+      const name = field('contactName');
+      const junta = field('contactComuna');
+      const email = field('contactEmail');
+      const message = field('contactMessage');
+      trackSeoEvent('seo_contact_click', { page: pathname, cta: 'formulario-contacto', source_section: 'contacto' });
+      const body = `Nombre: ${name}\nJunta o comuna: ${junta}\nCorreo: ${email}\n\n${message}`;
+      window.location.href = `mailto:contacto@juntapp.cl?subject=${encodeURIComponent('Consulta desde juntapp.cl')}&body=${encodeURIComponent(body)}`;
     }) as EventListener);
 
     const search = root.querySelector<HTMLInputElement>('#bento-socios-search');
@@ -236,7 +251,10 @@ export default function OriginalPublicPage({ view, children }: { view?: Original
       <div className="corporate-landing style-swiss">
         <div dangerouslySetInnerHTML={{ __html: originalFragments.header.replaceAll('j-monogram-20260717', 'rounded-j-20260812') }} />
         <div dangerouslySetInnerHTML={{ __html: originalFragments.mobileNav }} />
-        {children ? <div id="mainContent" className="corporate-views-wrapper">{children}</div> : <div id="mainContent" className="corporate-views-wrapper" dangerouslySetInnerHTML={{ __html: publicContent }} />}
+        <div id="mainContent" className="corporate-views-wrapper">
+          {view ? <div dangerouslySetInnerHTML={{ __html: publicContent }} /> : null}
+          {children}
+        </div>
         <div dangerouslySetInnerHTML={{ __html: originalFragments.footer.replaceAll('j-monogram-20260717', 'rounded-j-20260812') }} />
       </div>
     </div>

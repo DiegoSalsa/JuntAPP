@@ -10,6 +10,7 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
   }, [error, pathname]);
   return (
     <main style={{ minHeight: '70vh', display: 'grid', placeItems: 'center', padding: 24, color: '#031636', background: '#f7f6f0' }}>
+      <meta name="robots" content="noindex, nofollow" />
       <div style={{ maxWidth: 440, textAlign: 'center' }}>
         <h1>No pudimos cargar esta sección</h1>
         <p>Puede ser un problema temporal de conexión. Intenta nuevamente.</p>

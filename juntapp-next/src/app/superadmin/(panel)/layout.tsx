@@ -1,4 +1,9 @@
+import type { Metadata } from 'next';
 import { displayAdminName, requireSuperadmin } from '@/lib/superadmin';
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 import SuperadminShell from './superadmin-shell';
 import '../superadmin.css';
 

@@ -4,8 +4,8 @@ import { formatCLP, PLANS, type PlanId } from '@/lib/plans';
 
 const details: Record<PlanId, string[]> = {
   juntapp: ['Hasta 500 vecinos activos', 'Socios, tesorería y caja', 'Consultas y comunicaciones', 'Administradores ilimitados'],
-  juntapp_web: ['Todo JuntAPP Vecinal', 'Landing pública autoadministrable', '5 plantillas incluidas', 'Logo, fotos, textos y colores'],
-  web: ['Landing pública autoadministrable', '5 plantillas responsivas', 'Gestor de imágenes y contenidos', 'Publicación con dirección propia'],
+  juntapp_web: ['Todo JuntAPP Vecinal', 'Landing pública autoadministrable', 'Plantillas de sitio comunitario', 'Logo, fotos, textos y colores'],
+  web: ['Landing pública autoadministrable', 'Plantillas de sitio comunitario', 'Gestor de imágenes y contenidos', 'Publicación con dirección propia'],
 };
 
 export default function PricingPlans() {

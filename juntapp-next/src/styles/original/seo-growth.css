@@ -1,0 +1,187 @@
+.style-swiss .seo-growth {
+  color: #172033;
+}
+
+.style-swiss .seo-breadcrumbs {
+  margin: 8px auto 0;
+  max-width: 920px;
+}
+
+.style-swiss .seo-breadcrumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 0;
+  list-style: none;
+  margin: 0;
+  padding: 8px 12px;
+  background: #fffaf0;
+  border: 2px solid #031636;
+  box-shadow: 3px 3px 0 #031636;
+  font-family: Outfit, sans-serif;
+  font-size: 0.92rem;
+}
+
+.style-swiss .seo-breadcrumbs li {
+  display: inline-flex;
+  align-items: center;
+  color: #031636;
+  font-weight: 700;
+}
+
+.style-swiss .seo-breadcrumbs li + li::before {
+  content: ">";
+  margin: 0 8px;
+  color: #9a3412;
+}
+
+.style-swiss .seo-breadcrumbs a {
+  color: #031636;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.style-swiss .seo-paper {
+  max-width: 920px;
+  margin: 28px auto 0;
+  padding: 32px 28px 36px;
+  background: #fffaf0;
+  color: #172033;
+  border: 3px solid #031636;
+  box-shadow: 8px 8px 0 #031636;
+  font-family: Outfit, sans-serif;
+  line-height: 1.6;
+}
+
+.style-swiss .seo-paper h1,
+.style-swiss .seo-paper h2,
+.style-swiss .seo-paper h3 {
+  font-family: Montserrat, sans-serif;
+  color: #031636;
+  line-height: 1.15;
+  text-transform: none;
+  text-shadow: none;
+}
+
+.style-swiss .seo-paper h1 {
+  margin: 0 0 10px;
+  font-size: 2.15rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.style-swiss .seo-paper h2 {
+  margin: 32px 0 10px;
+  font-size: 1.45rem;
+  font-weight: 800;
+}
+
+.style-swiss .seo-kicker {
+  margin: 0 0 8px;
+  color: #9a3412;
+  font-family: Montserrat, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.style-swiss .seo-meta {
+  margin: 0 0 16px;
+  color: #475569;
+  font-size: 0.92rem;
+}
+
+.style-swiss .seo-answer {
+  margin: 0 0 8px;
+  padding: 16px 16px 14px;
+  background: #ffe56b;
+  border: 3px solid #031636;
+  box-shadow: 4px 4px 0 #031636;
+  font-size: 1.05rem;
+}
+
+.style-swiss .seo-paper p { margin: 0 0 12px; }
+.style-swiss .seo-paper ul,
+.style-swiss .seo-paper ol { margin: 0 0 14px; padding-left: 1.2rem; }
+.style-swiss .seo-paper li { margin: 0 0 6px; }
+.style-swiss .seo-paper a { color: #7c2d12; font-weight: 700; }
+
+.style-swiss .seo-table-wrap { overflow-x: auto; margin: 0 0 16px; }
+.style-swiss .seo-paper table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  font-size: 0.95rem;
+}
+.style-swiss .seo-paper caption {
+  caption-side: bottom;
+  padding-top: 6px;
+  color: #475569;
+  text-align: left;
+  font-size: 0.82rem;
+}
+.style-swiss .seo-paper th,
+.style-swiss .seo-paper td {
+  border: 2px solid #031636;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.style-swiss .seo-paper th { background: #031636; color: #fffaf0; }
+
+.style-swiss .seo-faq details {
+  margin: 0 0 8px;
+  background: #fff;
+  border: 2px solid #031636;
+}
+.style-swiss .seo-faq summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  font-family: Montserrat, sans-serif;
+  font-weight: 800;
+}
+.style-swiss .seo-faq details p { padding: 0 12px 12px; }
+
+.style-swiss .seo-sources a { word-break: break-word; }
+
+.style-swiss .seo-cta {
+  margin-top: 28px;
+  padding: 16px;
+  background: #fff;
+  border: 3px dashed #031636;
+}
+.style-swiss .seo-cta div { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.style-swiss .seo-note-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.style-swiss .seo-note-list a {
+  display: block;
+  padding: 14px 14px 12px;
+  background: #fffef6;
+  color: #031636;
+  text-decoration: none;
+  border: 3px solid #031636;
+  box-shadow: 4px 4px 0 #4a2c11;
+}
+.style-swiss .seo-note-list strong { display: block; font-family: Montserrat, sans-serif; }
+.style-swiss .seo-note-list span {
+  display: block;
+  margin-top: 4px;
+  color: #334155;
+  font-weight: 500;
+}
+
+.style-swiss .home-seo-band { padding-top: 10px; }
+.style-swiss .home-seo-band .seo-paper { margin-top: 0; }
+
+@media (max-width: 768px) {
+  .style-swiss .seo-paper { padding: 20px 14px 24px; box-shadow: 4px 4px 0 #031636; }
+  .style-swiss .seo-paper h1 { font-size: 1.7rem !important; }
+  .style-swiss .seo-paper h2 { font-size: 1.25rem !important; }
+  .style-swiss .seo-cta .btn { width: 100%; text-align: center; }
+}

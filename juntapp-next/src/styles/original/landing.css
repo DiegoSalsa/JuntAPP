@@ -6896,6 +6896,7 @@ textarea.form-input {
 }
 
 /* Switzerland School of Design: Bold section title plaques for all subpages to make them stand out instantly */
+.style-swiss .subpage-corkboard-header h1,
 .style-swiss .subpage-corkboard-header h3 {
   background-color: #ffffff !important;
   color: #031636 !important;
@@ -6914,6 +6915,9 @@ textarea.form-input {
 }
 
 /* Orange plaque color styling for corkboard subpages */
+.style-swiss #corp-faq .subpage-corkboard-header h1,
+.style-swiss #corp-contacto .subpage-corkboard-header h1,
+.style-swiss #corp-caracteristicas .subpage-corkboard-header h1,
 .style-swiss #corp-faq .subpage-corkboard-header h3,
 .style-swiss #corp-contacto .subpage-corkboard-header h3,
 .style-swiss #corp-caracteristicas .subpage-corkboard-header h3 {
@@ -6922,7 +6926,11 @@ textarea.form-input {
 }
 
 /* White plaque color styling for chalkboard subpages */
+.style-swiss #corp-sobre-nosotros .subpage-corkboard-header h1,
+.style-swiss #corp-legal .subpage-corkboard-header h1,
+.style-swiss #corp-pricing .subpage-corkboard-header h1,
 .style-swiss #corp-sobre-nosotros .subpage-corkboard-header h3,
+.style-swiss #corp-legal .subpage-corkboard-header h3,
 .style-swiss #corp-pricing .subpage-corkboard-header h3 {
   background-color: #ffffff !important;
   color: #031636 !important;
