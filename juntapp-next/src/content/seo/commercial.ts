@@ -51,7 +51,7 @@ export const COMMERCIAL_PAGES: SeoPageModel[] = [
         heading: 'Roles que ya existen',
         paragraphs: [
           'El producto distingue vecino y directiva. Dentro de la directiva, los cargos que se pueden asignar son presidente, secretario, tesorero y dirigente. Presidencia asigna secretario, tesorero y dirigente; esos tres cargos son únicos. La presidencia no se transfiere desde esa pantalla.',
-          'Una solicitud de ingreso llega con un enlace de la junta. La resuelve secretaría o, si todavía no hay secretario, presidencia o quien figura como titular. El vecino activa su acceso por correo.',
+          'Una solicitud de ingreso llega con un enlace de la junta. Secretaría, o presidencia si todavía no hay secretario, la revisa para comprobar los requisitos legales y estatutarios. Quien los cumple no puede quedar fuera por preferencia de la directiva. Un rechazo corresponde a un requisito que no se cumple. Si la revisión está conforme, la persona activa su acceso por correo.',
         ],
       },
       {
@@ -87,12 +87,12 @@ export const COMMERCIAL_PAGES: SeoPageModel[] = [
     h1: 'Gestión de socios de una junta de vecinos',
     plaque: 'JUNTAPP · PADRÓN',
     kicker: 'Socios',
-    answer: 'La gestión de socios en JuntAPP es el padrón de la junta: nombre, RUT validado, dirección, teléfono, correo y estado de la cuota del domicilio. La directiva busca personas, revisa solicitudes de ingreso y asigna cargos. No existe hoy una exportación a Excel del padrón.',
+    answer: 'La gestión de socios en JuntAPP es el padrón de la junta: nombre, RUT validado, dirección, teléfono, correo y el estado de cuota que el software guarda por domicilio. La directiva busca personas y revisa solicitudes para comprobar requisitos, no para elegir a quién acepta. No existe hoy una exportación a Excel del padrón.',
     sections: [
       {
         heading: 'Qué datos quedan en la ficha',
         paragraphs: [
-          'Al inscribir, la directiva pide nombre, RUT, dirección, celular y correo. El RUT se valida antes de enviar la invitación. La persona recibe un correo para activar su acceso. Si entra por el enlace público de la junta, la solicitud queda pendiente hasta que quien corresponde la acepte.',
+          'Al inscribir, la directiva pide nombre, RUT, dirección, celular y correo. El RUT se valida antes de enviar la invitación. La persona recibe un correo para activar su acceso. Si entra por el enlace público de la junta, la solicitud queda pendiente mientras se comprueban los requisitos. Quien los cumple no puede ser rechazado de forma arbitraria.',
           'El vecino, una vez dentro, ve su ficha y puede actualizar teléfono y correo. También ve el contacto de la directiva.',
         ],
         bullets: [
@@ -105,7 +105,7 @@ export const COMMERCIAL_PAGES: SeoPageModel[] = [
       {
         heading: 'Ingreso controlado, no una planilla abierta',
         paragraphs: [
-          'Cada junta tiene un código y un enlace de solicitud. Secretaría revisa la bandeja. Si no hay secretario, puede resolverla presidencia o el titular de la cuenta. Aceptar envía la invitación. Rechazar pide un motivo.',
+          'Cada junta tiene un código y un enlace de solicitud. Secretaría revisa la bandeja. Si no hay secretario, la revisa presidencia o el titular de la cuenta. Esa revisión comprueba edad, residencia y lo que pidan los estatutos. Si está conforme, se envía la invitación. Un rechazo pide un motivo y corresponde a un requisito que no se cumple, no a una selección discrecional.',
           'Eso se parece al cuidado del {/recursos/como-llevar-registro-socios-junta-de-vecinos|registro de socios}, pero el módulo no es el libro foliado que la municipalidad revisa en una elección. Es el padrón operativo de la plataforma.',
         ],
       },
@@ -119,6 +119,7 @@ export const COMMERCIAL_PAGES: SeoPageModel[] = [
     faqs: [
       { question: '¿Puedo cargar el padrón desde Excel?', answer: 'No en la versión actual. Cada inscripción se hace desde el formulario o mediante una solicitud de ingreso.' },
       { question: '¿El padrón reemplaza el registro que se entrega en una elección?', answer: 'No automáticamente. Sirve para tener la nómina al día. La comisión electoral y la municipalidad definen qué documento deben recibir.' },
+      { question: '¿La directiva puede rechazar una solicitud?', answer: 'Puede registrar la revisión y un motivo. La Ley 19.418 no permite negar el ingreso a quien cumple los requisitos legales y estatutarios. El rechazo cabe cuando falta uno de esos requisitos.' },
       { question: '¿Un vecino ve los datos de todos?', answer: 'La directiva ve el padrón. El vecino ve su ficha y el contacto de la directiva, no el listado completo de RUT.' },
     ],
     cta: register('socios', 'Ordenar el padrón'),
@@ -141,7 +142,7 @@ export const COMMERCIAL_PAGES: SeoPageModel[] = [
     h1: 'Cuotas de una junta de vecinos',
     plaque: 'JUNTAPP · CUOTAS',
     kicker: 'Cuotas',
-    answer: 'En JuntAPP la cuota es un cobro por domicilio y por período. Puede registrarse en efectivo, transferencia u otro medio manual, o pagarse con Mercado Pago si la junta conectó su cuenta. Al marcarla pagada, el ingreso queda en tesorería. Un pago confirmado por Mercado Pago no se corrige a mano.',
+    answer: 'En JuntAPP el estado de la cuota se registra por domicilio y por período. Esa agrupación es del software, no una regla de la Ley 19.418: el monto y quién paga los definen los estatutos y la asamblea. El pago puede anotarse en efectivo, transferencia u otro medio, o hacerse con Mercado Pago si la junta conectó su cuenta. Al marcarlo, el ingreso queda en tesorería.',
     sections: [
       {
         heading: 'Cómo se registra un pago',
@@ -166,7 +167,7 @@ export const COMMERCIAL_PAGES: SeoPageModel[] = [
     faqs: [
       { question: '¿La ley obliga a cobrar una cuota?', answer: 'La Ley 19.418 permite que la organización fije cuotas ordinarias y extraordinarias. El monto y la forma de cobro los acuerda la propia junta. JuntAPP no decide ese monto.' },
       { question: '¿Puedo cobrar por WhatsApp desde JuntAPP?', answer: 'No hay envío masivo de WhatsApp activo. El vecino puede pagar en Mercado Pago si la junta conectó la cuenta, o la directiva registra el pago manual.' },
-      { question: '¿Dos personas de la misma casa pagan dos cuotas?', answer: 'La cuota del producto está asociada al domicilio. Dos fichas del mismo hogar comparten ese estado de pago.' },
+      { question: '¿Dos personas de la misma casa pagan dos cuotas?', answer: 'En JuntAPP, dos fichas del mismo domicilio comparten el estado de pago. Eso es el modelo del software. Si los estatutos cobran de otra forma, la junta tiene que resolverlo antes de usar ese estado como criterio formal.' },
     ],
     cta: { href: '/registro', label: 'Gestionar las cuotas con JuntAPP', event: SEO_EVENTS.register, section: 'cuotas' },
     secondaryCta: pricing('cuotas'),
@@ -329,7 +330,7 @@ export const COMMERCIAL_PAGES: SeoPageModel[] = [
         ],
         bullets: [
           'RUT validado al inscribir.',
-          'Dirección del domicilio, que también define la cuota.',
+          'Dirección, para ubicar la residencia. El estado de cuota del software se agrupa por domicilio; los estatutos definen si ese es el criterio de cobro.',
           'Solicitudes pendientes separadas de quienes ya son socios.',
           'Sin exportación a planilla en la versión actual.',
         ],

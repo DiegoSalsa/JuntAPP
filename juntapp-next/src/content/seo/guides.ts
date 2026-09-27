@@ -63,22 +63,23 @@ export const GUIDE_PAGES: SeoPageModel[] = [
           rows: [
             ['Nombre', 'Identificar a la persona en asamblea y padrón', 'No en internet'],
             ['RUT', 'Evitar duplicados', 'No'],
-            ['Dirección', 'Residencia y cuota del domicilio', 'No'],
+            ['Dirección', 'Comprobar residencia en la unidad vecinal', 'No'],
             ['Correo y teléfono', 'Avisos y recuperación de acceso', 'No'],
             ['Fecha de ingreso', 'Antigüedad y elecciones', 'Solo si un trámite lo pide'],
-            ['Estado de cuota', 'Saber si el domicilio está al día', 'A la directiva, no al buscador'],
+            ['Estado de pago', 'Saber si la cuota que corresponda está al día', 'A la directiva, no al buscador'],
           ],
         },
       },
       {
         heading: 'Cómo puede ayudar una plataforma digital',
         paragraphs: [
-          '{/gestion-socios-junta-de-vecinos|JuntAPP guarda ese padrón}: valida el RUT, separa las solicitudes y muestra si el domicilio está al día. No certifica la residencia ni reemplaza el registro que se entrega en la municipalidad. Quien revisa la solicitud sigue siendo secretaría o, si no hay secretario, presidencia.',
+          '{/gestion-socios-junta-de-vecinos|JuntAPP guarda ese padrón}: valida el RUT y deja la solicitud pendiente mientras se revisa. Esa revisión comprueba requisitos. Quien cumple la ley y los estatutos no puede ser rechazado por preferencia de la directiva. El sistema no certifica la residencia ni reemplaza el registro municipal.',
         ],
       },
     ],
     faqs: [
       { question: '¿Desde qué edad se puede ser socio?', answer: 'La guía de la BCN señala al menos 14 años y residencia en la unidad vecinal. Para integrar el directorio, la misma guía exige mayoría de edad.' },
+      { question: '¿Se puede rechazar a quien pide ser socio?', answer: 'Solo si no cumple un requisito legal o estatutario. JuntAPP permite anotar la revisión y el motivo. No convierte esa bandeja en una facultad para elegir vecinos.' },
       { question: '¿El registro digital elimina el libro de papel?', answer: 'No tiene por qué. Puedes mantener el soporte que pidan tus estatutos y usar el padrón digital para consultar y no reescribir.' },
     ],
     sources: LEGAL_SOURCES,
@@ -122,7 +123,7 @@ export const GUIDE_PAGES: SeoPageModel[] = [
           'Revisa qué dicen los estatutos sobre cuota ordinaria y extraordinaria.',
           'Si el monto no está vigente, llévalo a la asamblea que corresponda. La extraordinaria, con el quórum que indica la ley, es la vía de la cuota extraordinaria.',
           'Define el período: mes, semestre o el que hayan acordado.',
-          'Cobra por domicilio si así lo decidieron, y anota el medio.',
+          'Anota el medio de pago. JuntAPP representa el estado de la cuota por domicilio. Antes de utilizar esa modalidad como criterio formal de cobro, la junta debe verificar que coincida con sus estatutos y acuerdos vigentes.',
           'Entrega o guarda el comprobante. En efectivo, el respaldo es todavía más necesario.',
           'Pasa el ingreso al libro de caja el mismo día, no “cuando haya tiempo”.',
         ],
@@ -139,12 +140,12 @@ export const GUIDE_PAGES: SeoPageModel[] = [
       },
       {
         heading: 'Qué información conviene registrar',
-        paragraphs: ['Por cada cobro: domicilio, período, monto, fecha, medio y quién recibió. Si hubo devolución, el motivo y la fecha. El saldo del período se explica con esa lista, no con la memoria del tesorero.'],
+        paragraphs: ['Por cada cobro: período, monto, fecha, medio, quién recibió y la persona o grupo que los estatutos indiquen como deudor. Si hubo devolución, el motivo y la fecha. El saldo del período se explica con esa lista, no con la memoria del tesorero.'],
       },
       {
         heading: 'Cómo puede ayudar una plataforma digital',
         paragraphs: [
-          'En {/cuotas-junta-de-vecinos|JuntAPP la cuota es por domicilio}. La directiva la marca pagada en efectivo, transferencia u otro medio, y el ingreso aparece en tesorería. Si conectan Mercado Pago, un pago confirmado por esa vía no se edita a mano. El sistema no decide el monto ni reemplaza el acuerdo de asamblea.',
+          'En {/cuotas-junta-de-vecinos|JuntAPP} el estado de la cuota se muestra por domicilio. Eso es una forma de registro del producto, no una regla de la Ley 19.418. La directiva marca el pago en efectivo, transferencia u otro medio, y el ingreso aparece en tesorería. Si conectan Mercado Pago, un pago confirmado por esa vía no se edita a mano. El sistema no decide el monto ni reemplaza el acuerdo de asamblea.',
         ],
       },
     ],
@@ -493,7 +494,7 @@ export const GUIDE_PAGES: SeoPageModel[] = [
       {
         heading: 'Cómo puede ayudar una plataforma digital',
         paragraphs: [
-          'En el padrón de JuntAPP, presidencia asigna secretario, tesorero o dirigente. Esos cargos son únicos y la presidencia no se traspasa desde esa pantalla. Secretaría revisa las solicitudes de ingreso. El vecino ve el contacto de la directiva, no el padrón completo. El detalle está en {/gestion-socios-junta-de-vecinos|gestión de socios}.',
+          'En el padrón de JuntAPP, presidencia asigna secretario, tesorero o dirigente. Esos cargos son únicos y la presidencia no se traspasa desde esa pantalla. Secretaría revisa las solicitudes para comprobar requisitos, no para seleccionar vecinos. El vecino ve el contacto de la directiva, no el padrón completo. El detalle está en {/gestion-socios-junta-de-vecinos|gestión de socios}.',
         ],
       },
     ],
@@ -611,7 +612,7 @@ export const GUIDE_PAGES: SeoPageModel[] = [
         steps: [
           'Define qué documento se presenta en asamblea y con qué periodicidad.',
           'Guarda comprobantes junto con el movimiento, no en un chat que se borra.',
-          'Entrega al socio el estado de su domicilio, no el de todo el pasaje.',
+          'Entrega a cada socio el estado de pago que le corresponda, no la nómina completa del pasaje.',
           'Si publicas una página, revisa que no lleve RUT, teléfonos privados ni deudas con nombre.',
           'Cuando termine el período, archiva la versión que se rindió.',
         ],
