@@ -104,6 +104,9 @@ REVOKE DELETE ON public.profiles FROM authenticated;
 CREATE OR REPLACE FUNCTION public.protect_profile_admin_fields()
 RETURNS TRIGGER LANGUAGE plpgsql SET search_path = '' AS $$
 BEGIN
+  IF coalesce(auth.role(), current_user) = 'authenticated' AND NOT EXISTS (SELECT 1 FROM public.profiles WHERE id=auth.uid() AND membership_status='active') THEN
+    RAISE EXCEPTION 'La membresia esta inactiva' USING ERRCODE='42501';
+  END IF;
   IF coalesce(auth.role(), current_user) NOT IN ('service_role','postgres','supabase_admin') THEN
     IF NEW.email IS DISTINCT FROM OLD.email OR NEW.name IS DISTINCT FROM OLD.name OR NEW.address IS DISTINCT FROM OLD.address THEN
       RAISE EXCEPTION 'El correo se cambia mediante Auth y los datos del padron son administrativos' USING ERRCODE='42501';
@@ -223,3 +226,157 @@ RETURNS TABLE(id UUID,name TEXT,board_position TEXT,phone TEXT,email TEXT) LANGU
 $$;
 REVOKE ALL ON FUNCTION public.board_contacts(UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.board_contacts(UUID) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.current_junta_id()
+RETURNS UUID LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT junta_id FROM public.profiles WHERE id=auth.uid() AND membership_status='active';
+$$;
+CREATE OR REPLACE FUNCTION public.current_user_role()
+RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT role FROM public.profiles WHERE id=auth.uid() AND membership_status='active';
+$$;
+CREATE OR REPLACE FUNCTION public.is_active_member()
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT EXISTS (SELECT 1 FROM public.profiles WHERE id=auth.uid() AND membership_status='active');
+$$;
+REVOKE ALL ON FUNCTION public.is_active_member() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_active_member() TO authenticated;
+
+DROP POLICY IF EXISTS "Members can read own profile or board roster" ON public.profiles;
+CREATE POLICY "Members can read own profile or board roster"
+ON public.profiles FOR SELECT TO authenticated
+USING ((id=auth.uid() AND membership_status='active') OR (junta_id=public.current_junta_id() AND public.current_user_role()='dirigente' AND membership_status='active'));
+
+DROP POLICY IF EXISTS "Users can read their notifications" ON public.notifications;
+DROP POLICY IF EXISTS "Users can update their notifications" ON public.notifications;
+DROP POLICY IF EXISTS "Users can delete their notifications" ON public.notifications;
+CREATE POLICY "Users can read their notifications" ON public.notifications FOR SELECT TO authenticated USING (user_id=auth.uid() AND public.is_active_member());
+CREATE POLICY "Users can update their notifications" ON public.notifications FOR UPDATE TO authenticated USING (user_id=auth.uid() AND public.is_active_member()) WITH CHECK (user_id=auth.uid() AND public.is_active_member());
+CREATE POLICY "Users can delete their notifications" ON public.notifications FOR DELETE TO authenticated USING (user_id=auth.uid() AND public.is_active_member());
+
+DROP POLICY IF EXISTS "Users can read their push subscriptions" ON public.push_subscriptions;
+DROP POLICY IF EXISTS "Users can create their push subscriptions" ON public.push_subscriptions;
+DROP POLICY IF EXISTS "Users can update their push subscriptions" ON public.push_subscriptions;
+DROP POLICY IF EXISTS "Users can delete their push subscriptions" ON public.push_subscriptions;
+CREATE POLICY "Users can read their push subscriptions" ON public.push_subscriptions FOR SELECT TO authenticated USING (user_id=auth.uid() AND public.is_active_member());
+CREATE POLICY "Users can create their push subscriptions" ON public.push_subscriptions FOR INSERT TO authenticated WITH CHECK (user_id=auth.uid() AND public.is_active_member());
+CREATE POLICY "Users can update their push subscriptions" ON public.push_subscriptions FOR UPDATE TO authenticated USING (user_id=auth.uid() AND public.is_active_member()) WITH CHECK (user_id=auth.uid() AND public.is_active_member());
+CREATE POLICY "Users can delete their push subscriptions" ON public.push_subscriptions FOR DELETE TO authenticated USING (user_id=auth.uid() AND public.is_active_member());
+-- Final field-level protections and Chile-local accounting period.
+CREATE OR REPLACE FUNCTION public.protect_profile_admin_fields()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = '' AS $$
+BEGIN
+  IF coalesce(auth.role(), current_user) = 'authenticated' AND NOT EXISTS (SELECT 1 FROM public.profiles WHERE id=auth.uid() AND membership_status='active') THEN
+    RAISE EXCEPTION 'La membresia esta inactiva' USING ERRCODE='42501';
+  END IF;
+  IF coalesce(auth.role(), current_user) NOT IN ('service_role','postgres','supabase_admin') THEN
+    IF NEW.email IS DISTINCT FROM OLD.email OR NEW.name IS DISTINCT FROM OLD.name OR NEW.address IS DISTINCT FROM OLD.address THEN
+      RAISE EXCEPTION 'El correo se cambia mediante Auth y los datos del padron son administrativos' USING ERRCODE='42501';
+    END IF;
+    IF NEW.phone IS DISTINCT FROM OLD.phone AND auth.uid() IS DISTINCT FROM NEW.id THEN
+      RAISE EXCEPTION 'Solo puedes modificar tu propio telefono' USING ERRCODE='42501';
+    END IF;
+  END IF;
+  IF (NEW.id,NEW.role,NEW.board_position,NEW.rut,NEW.junta_id,NEW.household_id,NEW.cuota_status,NEW.membership_status,NEW.inactive_at,NEW.inactive_reason,NEW.created_at)
+     IS NOT DISTINCT FROM (OLD.id,OLD.role,OLD.board_position,OLD.rut,OLD.junta_id,OLD.household_id,OLD.cuota_status,OLD.membership_status,OLD.inactive_at,OLD.inactive_reason,OLD.created_at)
+  THEN RETURN NEW; END IF;
+  IF coalesce(auth.role(), current_user) IN ('service_role','postgres','supabase_admin') THEN RETURN NEW; END IF;
+  RAISE EXCEPTION 'Los campos administrativos del padron solo pueden modificarse en el servidor' USING ERRCODE='42501';
+END; $$;
+
+CREATE OR REPLACE FUNCTION public.protect_junta_server_fields()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = '' AS $$
+DECLARE trusted BOOLEAN := coalesce(auth.role(), current_user) IN ('service_role','postgres','supabase_admin');
+BEGIN
+  IF NEW.monthly_due_amount IS DISTINCT FROM OLD.monthly_due_amount
+     AND (NEW.id,NEW.owner_id,NEW.invite_code,NEW.subscription_status,NEW.subscription_price,NEW.subscription_plan,NEW.whatsapp_addon,NEW.billing_mode,NEW.trial_ends_at,NEW.trial_warning_sent_at,NEW.trial_expired_at,NEW.trial_expired_notice_sent_at,NEW.billing_notes,NEW.subscription_next_payment_date,NEW.mercadopago_preference_id,NEW.mercadopago_payment_id,NEW.mercadopago_subscription_id,NEW.activated_at,NEW.subscription_last_payment_status,NEW.subscription_last_synced_at,NEW.created_at)
+         IS NOT DISTINCT FROM
+         (OLD.id,OLD.owner_id,OLD.invite_code,OLD.subscription_status,OLD.subscription_price,OLD.subscription_plan,OLD.whatsapp_addon,OLD.billing_mode,OLD.trial_ends_at,OLD.trial_warning_sent_at,OLD.trial_expired_at,OLD.trial_expired_notice_sent_at,OLD.billing_notes,OLD.subscription_next_payment_date,OLD.mercadopago_preference_id,OLD.mercadopago_payment_id,OLD.mercadopago_subscription_id,OLD.activated_at,OLD.subscription_last_payment_status,OLD.subscription_last_synced_at,OLD.created_at)
+  THEN
+    IF trusted OR EXISTS (SELECT 1 FROM public.profiles WHERE id=auth.uid() AND junta_id=NEW.id AND membership_status='active' AND board_position IN ('presidente','tesorero')) THEN RETURN NEW; END IF;
+    RAISE EXCEPTION 'Solo Presidencia o Tesoreria puede modificar la cuota mensual' USING ERRCODE='42501';
+  END IF;
+  IF (NEW.id,NEW.owner_id,NEW.invite_code,NEW.subscription_status,NEW.subscription_price,NEW.subscription_plan,NEW.whatsapp_addon,NEW.billing_mode,NEW.trial_ends_at,NEW.trial_warning_sent_at,NEW.trial_expired_at,NEW.trial_expired_notice_sent_at,NEW.billing_notes,NEW.subscription_next_payment_date,NEW.mercadopago_preference_id,NEW.mercadopago_payment_id,NEW.mercadopago_subscription_id,NEW.activated_at,NEW.subscription_last_payment_status,NEW.subscription_last_synced_at,NEW.created_at)
+     IS NOT DISTINCT FROM
+     (OLD.id,OLD.owner_id,OLD.invite_code,OLD.subscription_status,OLD.subscription_price,OLD.subscription_plan,OLD.whatsapp_addon,OLD.billing_mode,OLD.trial_ends_at,OLD.trial_warning_sent_at,OLD.trial_expired_at,OLD.trial_expired_notice_sent_at,OLD.billing_notes,OLD.subscription_next_payment_date,OLD.mercadopago_preference_id,OLD.mercadopago_payment_id,OLD.mercadopago_subscription_id,OLD.activated_at,OLD.subscription_last_payment_status,OLD.subscription_last_synced_at,OLD.created_at)
+  THEN RETURN NEW; END IF;
+  IF trusted THEN RETURN NEW; END IF;
+  RAISE EXCEPTION 'Los campos de suscripcion y propietario solo pueden modificarse en el servidor' USING ERRCODE='42501';
+END; $$;
+
+CREATE OR REPLACE FUNCTION public.current_chile_date()
+RETURNS DATE LANGUAGE sql STABLE SET search_path = '' AS $$
+  SELECT timezone('America/Santiago', now())::date;
+$$;
+REVOKE ALL ON FUNCTION public.current_chile_date() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.current_chile_date() TO service_role;
+
+CREATE OR REPLACE FUNCTION public.record_approved_member_due(p_due_id UUID, p_payment_id TEXT, p_paid_at TIMESTAMPTZ)
+RETURNS BIGINT LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE target_due public.member_dues%ROWTYPE; dwelling public.households%ROWTYPE; payer_id UUID; new_transaction_id BIGINT;
+BEGIN
+  SELECT * INTO target_due FROM public.member_dues WHERE id=p_due_id FOR UPDATE;
+  IF target_due.id IS NULL OR target_due.household_id IS NULL THEN RAISE EXCEPTION 'Cuota por direccion no encontrada'; END IF;
+  IF target_due.status='paid' THEN
+    IF target_due.mercadopago_payment_id <> p_payment_id THEN RAISE EXCEPTION 'La cuota ya fue pagada con otra transaccion'; END IF;
+    RETURN target_due.transaction_id;
+  END IF;
+  SELECT * INTO dwelling FROM public.households WHERE id=target_due.household_id AND junta_id=target_due.junta_id;
+  SELECT id INTO payer_id FROM public.profiles WHERE household_id=dwelling.id ORDER BY (id=target_due.profile_id) DESC, created_at LIMIT 1;
+  INSERT INTO public.transactions(junta_id,type,description,amount,date,created_by,source,accounting_kind,account_code,category,gross_amount,fee_amount,net_amount,provider,provider_transaction_id,external_reference,verification_status,verified_at,is_immutable)
+  VALUES(target_due.junta_id,'ingreso','Cuota domiciliaria '||to_char(target_due.period,'MM/YYYY')||' verificada por Mercado Pago',target_due.amount,coalesce(p_paid_at::date,public.current_chile_date()),payer_id,'mercadopago','income','mercadopago','cuota_social',target_due.amount,0,target_due.amount,'mercadopago',p_payment_id,'juntapp-due:'||target_due.id||':'||target_due.junta_id||':'||target_due.household_id,'provider_confirmed',coalesce(p_paid_at,timezone('utc'::text,now())),true)
+  RETURNING id INTO new_transaction_id;
+  UPDATE public.member_dues SET status='paid',payment_source='mercadopago',manual_payment_method=NULL,mercadopago_payment_id=p_payment_id,paid_at=p_paid_at,transaction_id=new_transaction_id,updated_at=timezone('utc'::text,now()) WHERE id=target_due.id;
+  UPDATE public.profiles SET cuota_status='al_dia' WHERE household_id=dwelling.id AND junta_id=target_due.junta_id;
+  INSERT INTO public.notifications(user_id,type,title,message,read,date,action) SELECT id,'cuota','Cuota del domicilio recibida','Mercado Pago confirmo la cuota del domicilio por $'||target_due.amount||'.',false,timezone('utc'::text,now()),'/tesoreria' FROM public.profiles WHERE household_id=dwelling.id;
+  RETURN new_transaction_id;
+END; $$;
+
+CREATE OR REPLACE FUNCTION public.set_manual_household_due(p_household_id UUID, p_junta_id UUID, p_action TEXT, p_method TEXT DEFAULT NULL)
+RETURNS BIGINT LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE target_due public.member_dues%ROWTYPE; dwelling public.households%ROWTYPE; due_amount INTEGER; current_period DATE:=date_trunc('month',public.current_chile_date())::date; method_label TEXT; actor_id UUID; new_transaction_id BIGINT;
+BEGIN
+  IF p_action NOT IN ('paid','pending') THEN RAISE EXCEPTION 'Accion de cuota invalida'; END IF;
+  IF p_action='paid' AND p_method NOT IN ('cash','transfer','other') THEN RAISE EXCEPTION 'Metodo de pago manual invalido'; END IF;
+  SELECT * INTO dwelling FROM public.households WHERE id=p_household_id AND junta_id=p_junta_id;
+  IF dwelling.id IS NULL THEN RAISE EXCEPTION 'Direccion no encontrada'; END IF;
+  SELECT monthly_due_amount INTO due_amount FROM public.juntas WHERE id=p_junta_id;
+  SELECT id INTO actor_id FROM public.profiles WHERE household_id=p_household_id ORDER BY created_at LIMIT 1;
+  SELECT * INTO target_due FROM public.member_dues WHERE household_id=p_household_id AND period=current_period FOR UPDATE;
+  IF target_due.status='paid' AND target_due.mercadopago_payment_id IS NOT NULL THEN RAISE EXCEPTION 'La cuota fue confirmada por Mercado Pago y no puede modificarse manualmente'; END IF;
+  IF p_action='pending' THEN
+    IF target_due.status='paid' AND target_due.payment_source='manual' THEN
+      INSERT INTO public.transactions(junta_id,type,description,amount,date,created_by) VALUES(p_junta_id,'egreso','Anulación cuota domicilio '||to_char(current_period,'MM/YYYY')||' — '||dwelling.address,target_due.amount,public.current_chile_date(),actor_id) RETURNING id INTO new_transaction_id;
+      UPDATE public.member_dues SET status='pending',refund_transaction_id=new_transaction_id,paid_at=NULL,payment_source=NULL,manual_payment_method=NULL,updated_at=timezone('utc'::text,now()) WHERE id=target_due.id;
+    END IF;
+    UPDATE public.profiles SET cuota_status='pendiente' WHERE household_id=p_household_id;
+    RETURN new_transaction_id;
+  END IF;
+  IF target_due.status='paid' AND target_due.payment_source='manual' THEN RETURN target_due.transaction_id; END IF;
+  method_label:=CASE p_method WHEN 'cash' THEN 'Efectivo' WHEN 'transfer' THEN 'Transferencia' ELSE 'Otro medio manual' END;
+  INSERT INTO public.transactions(junta_id,type,description,amount,date,created_by) VALUES(p_junta_id,'ingreso','Cuota domicilio '||to_char(current_period,'MM/YYYY')||' — '||dwelling.address||' — '||method_label,coalesce(target_due.amount,due_amount),public.current_chile_date(),actor_id) RETURNING id INTO new_transaction_id;
+  INSERT INTO public.member_dues(junta_id,household_id,profile_id,period,amount,status,payment_source,manual_payment_method,paid_at,transaction_id)
+  VALUES(p_junta_id,p_household_id,actor_id,current_period,due_amount,'paid','manual',p_method,timezone('utc'::text,now()),new_transaction_id)
+  ON CONFLICT (household_id,period) WHERE household_id IS NOT NULL DO UPDATE SET status='paid',payment_source='manual',manual_payment_method=excluded.manual_payment_method,paid_at=excluded.paid_at,transaction_id=excluded.transaction_id,refund_transaction_id=NULL,updated_at=timezone('utc'::text,now());
+  UPDATE public.profiles SET cuota_status='al_dia' WHERE household_id=p_household_id;
+  INSERT INTO public.notifications(user_id,type,title,message,read,date,action) SELECT id,'cuota','Cuota del domicilio registrada','La directiva registró como pagada la cuota de '||dwelling.address||' mediante '||method_label||'.',false,timezone('utc'::text,now()),'/tesoreria' FROM public.profiles WHERE household_id=p_household_id;
+  RETURN new_transaction_id;
+END; $$;
+
+CREATE OR REPLACE FUNCTION public.record_refunded_member_due(p_due_id UUID, p_payment_id TEXT)
+RETURNS BIGINT LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE target_due public.member_dues%ROWTYPE; actor_id UUID; new_transaction_id BIGINT;
+BEGIN
+  SELECT * INTO target_due FROM public.member_dues WHERE id=p_due_id FOR UPDATE;
+  IF target_due.id IS NULL OR target_due.household_id IS NULL OR target_due.mercadopago_payment_id<>p_payment_id THEN RAISE EXCEPTION 'Pago de cuota por domicilio no encontrado'; END IF;
+  IF target_due.status='refunded' THEN RETURN target_due.refund_transaction_id; END IF;
+  IF target_due.status<>'paid' THEN RAISE EXCEPTION 'La cuota no se encuentra pagada'; END IF;
+  SELECT id INTO actor_id FROM public.profiles WHERE household_id=target_due.household_id ORDER BY (id=target_due.profile_id) DESC,created_at LIMIT 1;
+  INSERT INTO public.transactions(junta_id,type,description,amount,date,created_by,source,accounting_kind,account_code,category,gross_amount,fee_amount,net_amount,provider,provider_transaction_id,verification_status,verified_at,is_immutable)
+  VALUES(target_due.junta_id,'egreso','Reembolso de cuota verificado por Mercado Pago',target_due.amount,public.current_chile_date(),actor_id,'mercadopago','expense','mercadopago','reembolso_cuota',target_due.amount,0,-target_due.amount,'mercadopago',p_payment_id,'provider_confirmed',timezone('utc'::text,now()),true)
+  RETURNING id INTO new_transaction_id;
+  UPDATE public.member_dues SET status='refunded',refund_transaction_id=new_transaction_id,updated_at=timezone('utc'::text,now()) WHERE id=target_due.id;
+  UPDATE public.profiles SET cuota_status='pendiente' WHERE household_id=target_due.household_id;
+  INSERT INTO public.notifications(user_id,type,title,message,read,date,action) SELECT id,'cuota','Cuota reembolsada','Mercado Pago informo el reembolso de la cuota del domicilio.',false,timezone('utc'::text,now()),'/tesoreria' FROM public.profiles WHERE household_id=target_due.household_id;
+  RETURN new_transaction_id;
+END; $$;

@@ -471,20 +471,18 @@ export const db = {
         .select('*');
       if (pErr) throw pErr;
 
-      // Fetch votes count grouped by option
-      const { data: votes, error: vErr } = await supabaseClient
-        .from('votes')
-        .select('*');
-      if (vErr) throw vErr;
+      // Results and participation are exposed through privacy-preserving RPCs.
+      return Promise.all(polls.map(async p => {
+        const [{ data: results, error: resultsError }, { data: hasVoted, error: participationError }] = await Promise.all([
+          supabaseClient.rpc('poll_results', { p_poll_id: p.id }),
+          user ? supabaseClient.rpc('has_poll_participated', { p_poll_id: p.id }) : Promise.resolve({ data: false, error: null })
+        ]);
+        if (resultsError) throw resultsError;
+        if (participationError) throw participationError;
+        const counts = new Map((results || []).map(row => [row.option_id, Number(row.votes)]));
 
-      // Map back to options counts
-      return polls.map(p => {
-        const pollVotes = votes.filter(v => v.poll_id === p.id);
-        const hasVoted = user ? votes.some(v => v.poll_id === p.id && v.user_id === user.id) : false;
-        
-        // Sum options votes
         const mappedOptions = p.options.map(opt => {
-          const voteCount = pollVotes.filter(v => v.option_id === opt.id).length;
+          const voteCount = counts.get(opt.id) || 0;
           return {
             ...opt,
             votes: opt.votes + voteCount // Combine seed base votes + live votes
@@ -499,7 +497,7 @@ export const db = {
           options: mappedOptions,
           voted: hasVoted
         };
-      });
+      }));
     } else {
       let polls = JSON.parse(localStorage.getItem("juntapp_polls"));
       if (!Array.isArray(polls)) {
@@ -523,13 +521,10 @@ export const db = {
     if (!user) throw new Error("Debes iniciar sesión para votar.");
 
     if (isCloudActive) {
-      const { data, error } = await supabaseClient
-        .from('votes')
-        .insert({
-          user_id: user.id,
-          poll_id: pollId,
-          option_id: optionId
-        });
+      const { data, error } = await supabaseClient.rpc('cast_anonymous_vote', {
+        p_poll_id: pollId,
+        p_option_id: optionId
+      });
       if (error) {
         if (error.code === '23505') throw new Error("Ya has emitido tu voto en esta consulta.");
         throw error;

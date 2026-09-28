@@ -15,6 +15,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "audit:public": "node scripts/audit-public-pages.mjs",
     "test:board-role": "node --experimental-strip-types scripts/test-board-role-management.mjs",
     "test:treasury": "node --experimental-strip-types scripts/test-treasury-reconciliation.mjs",

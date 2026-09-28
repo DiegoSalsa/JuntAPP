@@ -20,7 +20,7 @@ jobs:
           cache-dependency-path: juntapp-next/package-lock.json
       - run: npm ci
       - run: npm run lint
-      - run: npx tsc --noEmit
+      - run: npm run typecheck
       - run: npm run build
       - run: npm run test:board-role
       - run: npm run test:treasury
