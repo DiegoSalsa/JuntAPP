@@ -150,3 +150,7 @@ Comprobaciones locales:
 npm run lint
 npm run build
 ```
+
+## Despliegue
+
+La aplicación productiva es juntapp-next. En Vercel configura **Root Directory = juntapp-next** y no uses el ercel.json de la raíz, que pertenece al frontend Vite legado y reescribe las rutas a /index.html. Las carpetas rontend/ y contextoFrontend/ se conservan para referencia; su archivo ercel.json no debe ser la configuración de producción de Next.
