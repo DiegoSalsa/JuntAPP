@@ -10,7 +10,7 @@ const genericMessage = 'Si el correo pertenece a una cuenta, recibirás un enlac
 
 export async function POST(request: Request) {
   const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local';
-  if (!rateLimit(`password-recovery:${forwardedFor}`, 4, 60 * 60_000).allowed) {
+  if (!(await rateLimit(`password-recovery:${forwardedFor}`, 4, 60 * 60_000)).allowed) {
     return NextResponse.json({ message: genericMessage });
   }
   const parsed = schema.safeParse(await request.json().catch(() => null));

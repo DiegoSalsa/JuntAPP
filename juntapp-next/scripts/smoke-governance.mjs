@@ -29,6 +29,7 @@ let browser;
 
 async function createUser(label, rut, metadata) {
   const email = `codex-${label}-${stamp}@example.com`;
+  if (metadata.junta_action === 'join') { const { data: junta } = await admin.from('juntas').select('id').eq('invite_code', metadata.invite_code).single(); const { error: inviteError } = await admin.from('member_invitations').insert({ junta_id: junta.id, email, rut }); if (inviteError) throw inviteError; }
   const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { name: `Prueba ${label}`, rut, address, phone: '+56 9 1234 5678', ...metadata } });
   if (error) throw error;
   users.push(data.user.id);
@@ -49,7 +50,7 @@ try {
   await admin.from('juntas').update({ subscription_status: 'authorized', activated_at: new Date().toISOString() }).eq('id', juntaId);
   const { data: junta } = await admin.from('juntas').select('invite_code').eq('id', juntaId).single();
 
-  const secretary = await createUser('secretaria', rutFrom(stamp + 1), { junta_action: 'join', invite_code: junta.invite_code, manual_invite: true });
+  const secretary = await createUser('secretaria', rutFrom(stamp + 1), { junta_action: 'join', invite_code: junta.invite_code });
   const { error: secretaryError } = await admin.from('profiles').update({ role: 'dirigente', board_position: 'secretario' }).eq('id', secretary.id);
   if (secretaryError) throw secretaryError;
 
@@ -73,12 +74,12 @@ try {
   users.push(applicantProfile.id);
   await admin.auth.admin.updateUserById(applicantProfile.id, { password, email_confirm: true });
 
-  const secondMember = await createUser('segundo-socio', rutFrom(stamp + 3), { junta_action: 'join', invite_code: junta.invite_code, manual_invite: true });
+  const secondMember = await createUser('segundo-socio', rutFrom(stamp + 3), { junta_action: 'join', invite_code: junta.invite_code });
   const { data: secondProfile } = await admin.from('profiles').select('household_id').eq('id', secondMember.id).single();
   assert(applicantProfile.household_id === secondProfile.household_id, 'La misma dirección no fue agrupada en un único domicilio');
   const { error: dueError } = await admin.rpc('set_manual_household_due', { p_household_id: applicantProfile.household_id, p_junta_id: juntaId, p_action: 'paid', p_method: 'transfer' });
   if (dueError) throw dueError;
-  const period = `${new Date().toISOString().slice(0, 7)}-01`;
+  const period = `${new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7)}-01`;
   const [{ data: householdDues }, { data: householdMembers }] = await Promise.all([
     admin.from('member_dues').select('id').eq('household_id', applicantProfile.household_id).eq('period', period),
     admin.from('profiles').select('cuota_status').eq('household_id', applicantProfile.household_id),

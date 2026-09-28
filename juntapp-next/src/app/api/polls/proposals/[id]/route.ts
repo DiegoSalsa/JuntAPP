@@ -14,7 +14,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
-  if (!rateLimit(`poll-proposal-review:${user.id}`, 20, 60_000).allowed) return NextResponse.json({ error: 'Espera antes de revisar otra propuesta.' }, { status: 429 });
+  if (!(await rateLimit(`poll-proposal-review:${user.id}`, 20, 60_000)).allowed) return NextResponse.json({ error: 'Espera antes de revisar otra propuesta.' }, { status: 429 });
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'La decisión no es válida.' }, { status: 400 });
   const { data: reviewer } = await supabase.from('profiles').select('id, junta_id, role').eq('id', user.id).single();

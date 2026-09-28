@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
-  if (!rateLimit(`dues-settings:${user.id}`, 10, 60_000).allowed) {
+  if (!(await rateLimit(`dues-settings:${user.id}`, 10, 60_000)).allowed) {
     return NextResponse.json({ error: 'Espera un momento antes de reintentar.' }, { status: 429 });
   }
   const parsed = settingsSchema.safeParse(await request.json().catch(() => null));

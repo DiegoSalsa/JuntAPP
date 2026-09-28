@@ -52,7 +52,7 @@ export default function OriginalPublicPage({ view, children }: { view?: Original
   };
   const publicContent = view === 'pricing'
     ? originalFragments[view]
-      .replace('>14.990<', '>15.000<')
+      .replace('>14.990<', '>14.990<')
       .replace('Prueba 30 Días Gratis', 'Crear Junta · $15.000 / mes')
     : view ? originalFragments[view].replace('class="corporate-view"', 'class="corporate-view active"') : '';
 
@@ -147,7 +147,7 @@ export default function OriginalPublicPage({ view, children }: { view?: Original
       const annual = billing?.classList.toggle('active') ?? false;
       root.querySelector('#billing-monthly-label')?.classList.toggle('active', !annual);
       root.querySelector('#billing-annual-label')?.classList.toggle('active', annual);
-      const prices = annual ? ['0', '15.000', '23.990'] : ['0', '15.000', '29.990'];
+      const prices = annual ? ['0', '14.990', '22.990'] : ['0', '14.990', '29.990'];
       ['pilot', 'activa', 'grande'].forEach((plan, index) => {
         const price = root.querySelector(`#price-${plan}`);
         const period = root.querySelector(`#period-${plan}`);

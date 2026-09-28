@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
-  if (!rateLimit(`poll-publish:${user.id}`, 10, 60_000).allowed) return NextResponse.json({ error: 'Espera antes de publicar otra consulta.' }, { status: 429 });
+  if (!(await rateLimit(`poll-publish:${user.id}`, 10, 60_000)).allowed) return NextResponse.json({ error: 'Espera antes de publicar otra consulta.' }, { status: 429 });
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Revisa el título, contexto y alternativas.' }, { status: 400 });
   const { data: profile } = await supabase.from('profiles').select('id, junta_id, role').eq('id', user.id).single();

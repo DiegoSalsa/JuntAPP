@@ -15,7 +15,7 @@ const registrationValidationSchema = z.object({
 
 export async function POST(request: Request) {
   const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local';
-  if (!rateLimit(`registration-validation:${forwardedFor}`, 20, 60_000).allowed) {
+  if (!(await rateLimit(`registration-validation:${forwardedFor}`, 20, 60_000)).allowed) {
     return NextResponse.json({ error: 'Demasiados intentos. Espera un momento antes de reintentar.' }, { status: 429 });
   }
   const parsed = registrationValidationSchema.safeParse(await request.json().catch(() => null));

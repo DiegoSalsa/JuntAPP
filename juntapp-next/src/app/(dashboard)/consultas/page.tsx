@@ -22,25 +22,21 @@ export default async function ConsultasPage() {
     .eq('junta_id', profile?.junta_id)
     .order('created_at', { ascending: false });
 
-  const { data: votes } = await supabase
-    .from('votes')
-    .select('*');
-
   const { data: proposals } = await supabase
     .from('poll_proposals')
     .select('*')
     .eq('junta_id', profile?.junta_id)
     .order('created_at', { ascending: false });
 
-  const enrichedPolls = (polls || []).map((poll) => {
-    const pollVotes = (votes || []).filter((response) => response.poll_id === poll.id);
-    const hasVoted = pollVotes.some((response) => response.user_id === user!.id);
-    const options = (poll.options as { id: string; text: string }[]).map((option) => ({
-      ...option,
-      votes: pollVotes.filter((response) => response.option_id === option.id).length,
-    }));
-    return { ...poll, options, hasVoted };
-  });
+  const enrichedPolls = await Promise.all((polls || []).map(async (poll) => {
+    const [{ data: results }, { data: participation }] = await Promise.all([
+      supabase.rpc('poll_results', { p_poll_id: poll.id }),
+      supabase.rpc('has_poll_participated', { p_poll_id: poll.id }),
+    ]);
+    const counts = new Map((results ?? []).map((row: { option_id: string; votes: number }) => [row.option_id, Number(row.votes)]));
+    const options = (poll.options as { id: string; text: string }[]).map((option) => ({ ...option, votes: counts.get(option.id) ?? 0 }));
+    return { ...poll, options, hasVoted: Boolean(participation) };
+  }));
 
   return <VotacionesClient polls={enrichedPolls} currentProfile={profile!} proposals={proposals ?? []} />;
 }

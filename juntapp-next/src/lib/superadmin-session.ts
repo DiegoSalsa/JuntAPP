@@ -34,16 +34,9 @@ export type SuperadminChallenge = {
 };
 
 function authSecret(purpose: 'session' | 'code') {
-  const configured =
-    (purpose === 'code' ? process.env.SUPERADMIN_CODE_SECRET : undefined) ??
-    process.env.SUPERADMIN_SESSION_SECRET ??
-    process.env.PAYMENT_WEBHOOK_SECRET;
-
+  const configured = purpose === 'code' ? process.env.SUPERADMIN_CODE_SECRET : process.env.SUPERADMIN_SESSION_SECRET;
   if (configured && configured.length >= 32) return configured;
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Falta SUPERADMIN_SESSION_SECRET con al menos 32 caracteres.');
-  }
-  return `juntapp-dev-only-${purpose}-secret-change-before-production-2026`;
+  throw new Error(`Falta SUPERADMIN_${purpose === 'code' ? 'CODE' : 'SESSION'}_SECRET con al menos 32 caracteres.`);
 }
 
 function sign(encodedPayload: string, purpose: 'session' | 'code') {

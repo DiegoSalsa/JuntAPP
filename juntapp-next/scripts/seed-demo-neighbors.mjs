@@ -47,6 +47,8 @@ if (adminError || !demoAdmin) throw adminError ?? new Error('No existe la cuenta
 const junta = Array.isArray(demoAdmin.juntas) ? demoAdmin.juntas[0] : demoAdmin.juntas;
 if (!junta?.invite_code || junta.subscription_status !== 'authorized') throw new Error('La junta demo no está activa o no tiene código.');
 
+async function authorize(email, rut) { const { error } = await admin.from('member_invitations').insert({ junta_id: demoAdmin.junta_id, email: email.toLowerCase(), rut }); if (error) throw error; }
+
 const boardMetadata = {
   name: 'Administración Demo',
   rut: rutFrom('12654321'),
@@ -54,8 +56,8 @@ const boardMetadata = {
   phone: '+56 9 2100 1099',
   junta_action: 'join',
   invite_code: junta.invite_code,
-  manual_invite: true,
 };
+
 const { data: existingBoardProfile } = await admin.from('profiles').select('id').eq('email', BOARD_DEMO_EMAIL).maybeSingle();
 if (existingBoardProfile) {
   const { error: boardAuthError } = await admin.auth.admin.updateUserById(existingBoardProfile.id, {
@@ -65,6 +67,7 @@ if (existingBoardProfile) {
   });
   if (boardAuthError) throw boardAuthError;
 } else {
+  await authorize(BOARD_DEMO_EMAIL, boardMetadata.rut);
   const { error: boardCreateError } = await admin.auth.admin.createUser({
     email: BOARD_DEMO_EMAIL,
     password: BOARD_DEMO_PASSWORD,
@@ -90,7 +93,7 @@ for (const neighbor of neighbors) {
     const { error: authError } = await admin.auth.admin.updateUserById(existingProfile.id, {
       password: DEMO_PASSWORD,
       email_confirm: true,
-      user_metadata: { name: neighbor.name, rut: neighbor.rut, address: neighbor.address, phone: neighbor.phone, junta_action: 'join', invite_code: junta.invite_code, manual_invite: true },
+      user_metadata: { name: neighbor.name, rut: neighbor.rut, address: neighbor.address, phone: neighbor.phone, junta_action: 'join', invite_code: junta.invite_code },
     });
     if (authError) throw authError;
     const { error: profileError } = await admin.from('profiles').update({ name: neighbor.name, rut: neighbor.rut, address: neighbor.address, phone: neighbor.phone, role: 'vecino', board_position: null }).eq('id', existingProfile.id).eq('junta_id', demoAdmin.junta_id);
@@ -98,11 +101,12 @@ for (const neighbor of neighbors) {
     continue;
   }
 
+  await authorize(neighbor.email, neighbor.rut);
   const { error: createError } = await admin.auth.admin.createUser({
     email: neighbor.email,
     password: DEMO_PASSWORD,
     email_confirm: true,
-    user_metadata: { name: neighbor.name, rut: neighbor.rut, address: neighbor.address, phone: neighbor.phone, junta_action: 'join', invite_code: junta.invite_code, manual_invite: true },
+    user_metadata: { name: neighbor.name, rut: neighbor.rut, address: neighbor.address, phone: neighbor.phone, junta_action: 'join', invite_code: junta.invite_code },
   });
   if (createError) throw createError;
 }
@@ -151,7 +155,7 @@ const { error: paymentError } = await admin.rpc('set_manual_household_due', {
 });
 if (paymentError) throw paymentError;
 
-const period = `${new Date().toISOString().slice(0, 7)}-01`;
+const period = `${new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7)}-01`;
 const [{ data: dues, error: duesError }, { data: paidMembers, error: paidMembersError }, { data: households, error: householdsError }] = await Promise.all([
   admin.from('member_dues').select('id, household_id, status, amount').eq('household_id', paidHouseholdId).eq('period', period),
   admin.from('profiles').select('email, cuota_status').eq('household_id', paidHouseholdId),

@@ -1,3 +1,4 @@
+import { currentChileBillingPeriod } from '@/lib/billing-period';
 import { createClient } from '@/lib/supabase/server';
 import type { Metadata } from 'next';
 import TesoreriaClient from '@/components/dashboard/tesoreria/TesoreriaClient';
@@ -25,7 +26,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
     .order('date', { ascending: false });
 
   const junta = Array.isArray(profile?.juntas) ? profile.juntas[0] : profile?.juntas;
-  const period = `${new Date().toISOString().slice(0, 7)}-01`;
+  const period = `${currentChileBillingPeriod()}-01`;
   const { data: currentDue } = await supabase
     .from('member_dues')
     .select('*')

@@ -15,9 +15,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "audit:public": "node scripts/audit-public-pages.mjs",
     "test:board-role": "node --experimental-strip-types scripts/test-board-role-management.mjs",
     "test:treasury": "node --experimental-strip-types scripts/test-treasury-reconciliation.mjs",
+    "test:security-hardening": "node scripts/test-security-hardening.mjs",
     "test:treasury:db": "node --env-file=.env.local scripts/integration-treasury-supabase.mjs",
     "test:notifications:db": "node --env-file=.env.local scripts/integration-notifications-supabase.mjs"
   },

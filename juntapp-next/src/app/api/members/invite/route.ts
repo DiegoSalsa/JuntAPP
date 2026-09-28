@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
-  const limit = rateLimit(`member-invite:${user.id}`, 10, 60 * 60_000);
+  const limit = await rateLimit(`member-invite:${user.id}`, 10, 60 * 60_000);
   if (!limit.allowed) {
     return NextResponse.json({ error: 'Límite de invitaciones alcanzado. Intenta más tarde.' }, { status: 429 });
   }
@@ -53,6 +53,8 @@ export async function POST(request: Request) {
 
   try {
     const admin = createAdminClient();
+    const { error: authorizationError } = await admin.from('member_invitations').insert({ junta_id: profile.junta_id, email: parsed.data.email.toLowerCase(), rut: cleanRUT(parsed.data.rut), created_by: user.id });
+    if (authorizationError) return NextResponse.json({ error: authorizationError.message }, { status: 400 });
     const { data, error } = await admin.auth.admin.generateLink({
       type: 'invite',
       email: parsed.data.email,
@@ -64,7 +66,6 @@ export async function POST(request: Request) {
           phone: parsed.data.phone,
           junta_action: 'join',
           invite_code: junta.invite_code,
-          manual_invite: true,
         },
         redirectTo: `${publicAppUrl()}/aceptar-invitacion`,
       },

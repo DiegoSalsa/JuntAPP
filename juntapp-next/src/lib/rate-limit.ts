@@ -1,25 +1,18 @@
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
-}
+import { createAdminClient } from '@/lib/supabase/admin';
 
-const attempts = new Map<string, RateLimitEntry>();
-
-/** Best-effort limiter for a single runtime instance. Use a shared store when scaling across regions. */
-export function rateLimit(key: string, limit: number, windowMs: number) {
-  const now = Date.now();
-  const current = attempts.get(key);
-
-  if (!current || current.resetAt <= now) {
-    const resetAt = now + windowMs;
-    attempts.set(key, { count: 1, resetAt });
-    return { allowed: true, remaining: limit - 1, resetAt };
-  }
-
-  if (current.count >= limit) {
-    return { allowed: false, remaining: 0, resetAt: current.resetAt };
-  }
-
-  current.count += 1;
-  return { allowed: true, remaining: limit - current.count, resetAt: current.resetAt };
+/** Distributed, atomic limiter backed by Supabase/PostgreSQL. */
+export async function rateLimit(key: string, limit: number, windowMs: number) {
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc('consume_rate_limit', {
+    p_key: key,
+    p_limit: limit,
+    p_window_seconds: Math.max(1, Math.ceil(windowMs / 1000)),
+  });
+  const result = Array.isArray(data) ? data[0] : data;
+  if (error || !result) return { allowed: false, remaining: 0, resetAt: Date.now() + windowMs };
+  return {
+    allowed: Boolean(result.allowed),
+    remaining: Number(result.remaining ?? 0),
+    resetAt: new Date(result.reset_at).getTime(),
+  };
 }

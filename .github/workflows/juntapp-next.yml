@@ -1,0 +1,27 @@
+name: JuntAPP Next checks
+on:
+  pull_request:
+    paths:
+      - 'juntapp-next/**'
+      - 'backend/supabase/migrations/**'
+      - '.github/workflows/juntapp-next.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: juntapp-next
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: juntapp-next/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run test:board-role
+      - run: npm run test:treasury
+      - run: npm run test:security-hardening

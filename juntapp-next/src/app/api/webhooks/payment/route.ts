@@ -22,7 +22,7 @@ function signatureIsValid(body: string, receivedSignature: string | null, secret
 
 export async function POST(request: Request) {
   const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  if (!rateLimit(`payment:${forwardedFor}`, 60, 60_000).allowed) {
+  if (!(await rateLimit(`payment:${forwardedFor}`, 60, 60_000)).allowed) {
     return NextResponse.json({ error: 'Demasiadas solicitudes' }, { status: 429 });
   }
 

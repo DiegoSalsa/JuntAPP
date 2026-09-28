@@ -20,7 +20,7 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local';
-  if (!rateLimit(`membership-request:${forwardedFor}`, 5, 60 * 60_000).allowed) {
+  if (!(await rateLimit(`membership-request:${forwardedFor}`, 5, 60 * 60_000)).allowed) {
     return NextResponse.json({ error: 'Alcanzaste el límite de solicitudes. Intenta más tarde.' }, { status: 429 });
   }
   const parsed = schema.safeParse(await request.json().catch(() => null));

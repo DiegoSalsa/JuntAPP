@@ -1,3 +1,4 @@
+import { currentChileBillingPeriod } from '@/lib/billing-period';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
-  if (!rateLimit(`member-due-checkout:${user.id}`, 6, 60_000).allowed) {
+  if (!(await rateLimit(`member-due-checkout:${user.id}`, 6, 60_000)).allowed) {
     return NextResponse.json({ error: 'Espera un momento antes de reintentar.' }, { status: 429 });
   }
 
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
   try {
     const account = await getJuntaMercadoPagoAccount(profile.junta_id);
     if (!account) return NextResponse.json({ error: 'Tu junta todavía no conectó su cuenta de Mercado Pago.' }, { status: 409 });
-    const period = `${new Date().toISOString().slice(0, 7)}-01`;
+    const period = `${currentChileBillingPeriod()}-01`;
     const admin = createAdminClient();
     const { data: existingDue } = await admin.from('member_dues').select('*').eq('household_id', profile.household_id).eq('period', period).maybeSingle();
     if (existingDue?.status === 'paid') return NextResponse.json({ error: 'La cuota de este domicilio ya está pagada.' }, { status: 409 });
