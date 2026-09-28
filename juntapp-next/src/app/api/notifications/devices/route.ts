@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'No autorizado.' }, { status: 401 });
-  if (!rateLimit(`app-device:${user.id}`, 20, 60_000).allowed) {
+  if (!(await rateLimit(`app-device:${user.id}`, 20, 60_000)).allowed) {
     return NextResponse.json({ error: 'Espera un momento antes de actualizar este dispositivo.' }, { status: 429 });
   }
   const parsed = deviceSchema.safeParse(await request.json().catch(() => null));

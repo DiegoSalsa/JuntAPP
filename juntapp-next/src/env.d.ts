@@ -5,6 +5,8 @@ declare namespace NodeJS {
     readonly NEXT_PUBLIC_APP_URL?: string;
     readonly SUPABASE_SERVICE_ROLE_KEY?: string;
     readonly PAYMENT_WEBHOOK_SECRET?: string;
+    readonly SUPERADMIN_SESSION_SECRET?: string;
+    readonly SUPERADMIN_CODE_SECRET?: string;
     readonly NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY?: string;
     readonly MERCADOPAGO_ACCESS_TOKEN?: string;
     readonly MERCADOPAGO_TEST_PAYER_EMAIL?: string;

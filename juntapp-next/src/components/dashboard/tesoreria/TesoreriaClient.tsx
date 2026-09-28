@@ -1,5 +1,6 @@
 'use client';
 
+import { currentChileBillingPeriod } from '@/lib/billing-period';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -28,7 +29,7 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
   const currentDuePaid = currentDue?.status === 'paid';
   const stats = useMemo(() => calculateTreasuryStats(transactions), [transactions]);
   const currentMonthTransactions = useMemo(() => {
-    const month = new Date().toISOString().slice(0, 7);
+    const month = currentChileBillingPeriod();
     return transactions.filter((transaction) => transaction.date.startsWith(month));
   }, [transactions]);
   const monthlyStats = useMemo(() => calculateTreasuryStats(currentMonthTransactions), [currentMonthTransactions]);

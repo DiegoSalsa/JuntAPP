@@ -60,7 +60,7 @@ export async function POST(request: Request) {
   const profile = await currentProfile();
   if (!profile) return NextResponse.json({ error: 'No autorizado.' }, { status: 401 });
   if (profile.role !== 'dirigente') return NextResponse.json({ error: 'Solo la directiva puede reintentar envíos.' }, { status: 403 });
-  if (!rateLimit(`push-retry:${profile.id}`, 10, 60_000).allowed) {
+  if (!(await rateLimit(`push-retry:${profile.id}`, 10, 60_000)).allowed) {
     return NextResponse.json({ error: 'Espera un momento antes de reintentar.' }, { status: 429 });
   }
   const parsed = z.object({ jobId: z.uuid() }).safeParse(await request.json().catch(() => null));

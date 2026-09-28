@@ -170,6 +170,8 @@ export async function createJuntaAction(
 
   let invitedUserId: string | null = null;
   try {
+    const { error: authorizationError } = await admin.from('member_invitations').insert({ junta_id: junta.id, email: parsed.data.ownerEmail.toLowerCase(), rut: ownerRut });
+    if (authorizationError) throw new Error(authorizationError.message);
     const { data: invited, error: inviteError } = await admin.auth.admin.generateLink({
       type: 'invite',
       email: parsed.data.ownerEmail,
@@ -181,7 +183,6 @@ export async function createJuntaAction(
           phone: parsed.data.ownerPhone,
           junta_action: 'join',
           invite_code: junta.invite_code,
-          manual_invite: true,
         },
         redirectTo: `${publicAppUrl()}/aceptar-invitacion`,
       },

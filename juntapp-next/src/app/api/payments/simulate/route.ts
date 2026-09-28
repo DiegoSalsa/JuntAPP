@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  if (!rateLimit(`payment-simulator:${user.id}`, 5, 60_000).allowed) return NextResponse.json({ error: 'Espera un momento antes de reintentar.' }, { status: 429 });
+  if (!(await rateLimit(`payment-simulator:${user.id}`, 5, 60_000)).allowed) return NextResponse.json({ error: 'Espera un momento antes de reintentar.' }, { status: 429 });
   const parsed = paymentSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Método de pago inválido.' }, { status: 400 });
   const { data: profile } = await supabase.from('profiles').select('id, junta_id, name, cuota_status').eq('id', user.id).single();

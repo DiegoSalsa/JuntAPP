@@ -1,3 +1,4 @@
+import { currentChileBillingPeriod } from '@/lib/billing-period';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -21,7 +22,7 @@ export default async function InicioPage() {
   const { data: { user } } = await supabase.auth.getUser();
   const { data: profile } = await supabase.from('profiles').select('*, juntas(name)').eq('id', user!.id).single();
   const juntaId = profile?.junta_id;
-  const period = `${new Date().toISOString().slice(0, 7)}-01`;
+  const period = `${currentChileBillingPeriod()}-01`;
   const [{ count: sociosCount }, { data: paidDues }, { data: transactions }, { data: announcements }, { data: activePoll }] = await Promise.all([
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('junta_id', juntaId),
     supabase.from('member_dues').select('household_id').eq('junta_id', juntaId).eq('period', period).eq('status', 'paid').not('household_id', 'is', null),

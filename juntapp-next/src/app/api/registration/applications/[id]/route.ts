@@ -18,7 +18,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
-  if (!rateLimit(`membership-decision:${user.id}`, 20, 60_000).allowed) return NextResponse.json({ error: 'Espera antes de resolver otra solicitud.' }, { status: 429 });
+  if (!(await rateLimit(`membership-decision:${user.id}`, 20, 60_000)).allowed) return NextResponse.json({ error: 'Espera antes de resolver otra solicitud.' }, { status: 429 });
   const parsed = decisionSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'La decisión o su motivo no son válidos.' }, { status: 400 });
   const admin = createAdminClient();

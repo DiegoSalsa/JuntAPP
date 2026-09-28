@@ -32,7 +32,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const user = await authenticatedUser();
   if (!user) return NextResponse.json({ error: 'No autorizado.' }, { status: 401 });
-  if (!rateLimit(`push-subscription:${user.id}`, 10, 60_000).allowed) {
+  if (!(await rateLimit(`push-subscription:${user.id}`, 10, 60_000)).allowed) {
     return NextResponse.json({ error: 'Espera un momento antes de reintentar.' }, { status: 429 });
   }
   if (!webPushPublicKey()) return NextResponse.json({ error: 'Las notificaciones todavía no están configuradas.' }, { status: 503 });

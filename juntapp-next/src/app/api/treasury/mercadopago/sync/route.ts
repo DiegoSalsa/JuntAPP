@@ -7,7 +7,7 @@ export async function POST() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
-  if (!rateLimit(`treasury-sync:${user.id}`, 4, 60_000).allowed) {
+  if (!(await rateLimit(`treasury-sync:${user.id}`, 4, 60_000)).allowed) {
     return NextResponse.json({ error: 'Espera un momento antes de sincronizar nuevamente.' }, { status: 429 });
   }
 

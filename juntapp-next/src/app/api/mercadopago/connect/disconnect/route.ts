@@ -7,7 +7,7 @@ export async function POST() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
-  if (!rateLimit(`mercadopago-disconnect:${user.id}`, 3, 60_000).allowed) {
+  if (!(await rateLimit(`mercadopago-disconnect:${user.id}`, 3, 60_000)).allowed) {
     return NextResponse.json({ error: 'Espera un momento antes de reintentar.' }, { status: 429 });
   }
   const { data: profile } = await supabase

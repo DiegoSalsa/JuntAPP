@@ -1,3 +1,4 @@
+import { currentChileBillingPeriod } from '@/lib/billing-period';
 import { after, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { rateLimit } from '@/lib/rate-limit';
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
-  const limit = rateLimit(`notifications:${user.id}`, 5, 60_000);
+  const limit = await rateLimit(`notifications:${user.id}`, 5, 60_000);
   if (!limit.allowed) {
     return NextResponse.json(
       { error: 'Demasiadas solicitudes' },
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: recipientsError.message }, { status: 500 });
   }
 
-  const period = `${new Date().toISOString().slice(0, 7)}-01`;
+  const period = `${currentChileBillingPeriod()}-01`;
   const { data: paidDues } = parsed.data.onlyPending ? await supabase.from('member_dues').select('household_id').eq('junta_id', profile.junta_id).eq('period', period).eq('status', 'paid') : { data: [] };
   const paidHouseholdIds = new Set((paidDues ?? []).map((due) => due.household_id));
   const pendingRecipients = (recipients ?? []).filter((recipient) => !parsed.data.onlyPending || !paidHouseholdIds.has(recipient.household_id));

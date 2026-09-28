@@ -41,8 +41,8 @@ npx supabase db push
 - `SUPABASE_SERVICE_ROLE_KEY`: clave exclusiva del servidor, usada para invitar socios y procesar pagos.
 - `NEXT_PUBLIC_APP_URL`: URL pública, sin `/` final.
 - `PAYMENT_WEBHOOK_SECRET`: secreto HMAC SHA-256 para `/api/webhooks/payment`.
-- `SUPERADMIN_SESSION_SECRET`: secreto HMAC de 32 caracteres o más para firmar la sesión de superadmin. Si se omite, usa `PAYMENT_WEBHOOK_SECRET`.
-- `SUPERADMIN_CODE_SECRET`: secreto HMAC opcional e independiente para proteger los códigos de acceso.
+- `SUPERADMIN_SESSION_SECRET`: secreto HMAC de 32 caracteres o más para firmar la sesión de superadmin. Es obligatorio en producción y nunca reutiliza secretos de Mercado Pago.
+- `SUPERADMIN_CODE_SECRET`: secreto HMAC obligatorio e independiente para proteger los códigos de acceso.
 - `CRON_SECRET`: secreto enviado por Vercel Cron a `/api/cron/subscription-trials` para cerrar beneficios vencidos y enviar avisos.
 - `NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY`: clave pública para el formulario seguro de tarjeta.
 - `MERCADOPAGO_ACCESS_TOKEN`: credencial privada para crear y verificar suscripciones mensuales de $15.000 CLP.

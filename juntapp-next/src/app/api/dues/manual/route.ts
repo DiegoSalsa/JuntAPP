@@ -1,3 +1,4 @@
+import { currentChileBillingPeriod } from '@/lib/billing-period';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
-  if (!rateLimit(`manual-due:${user.id}`, 20, 60_000).allowed) {
+  if (!(await rateLimit(`manual-due:${user.id}`, 20, 60_000)).allowed) {
     return NextResponse.json({ error: 'Demasiados cambios seguidos. Espera un momento.' }, { status: 429 });
   }
   const parsed = manualDueSchema.safeParse(await request.json().catch(() => null));
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
   if (!target || target.junta_id !== currentProfile.junta_id) {
     return NextResponse.json({ error: 'Domicilio no encontrado en tu junta.' }, { status: 404 });
   }
-  const period = `${new Date().toISOString().slice(0, 7)}-01`;
+  const period = `${currentChileBillingPeriod()}-01`;
   const { data: due } = await admin.from('member_dues').select('status, mercadopago_payment_id').eq('household_id', target.id).eq('period', period).maybeSingle();
   if (due?.status === 'paid' && due.mercadopago_payment_id) {
     return NextResponse.json({ error: 'Esta cuota fue confirmada por Mercado Pago y está protegida contra cambios manuales.' }, { status: 409 });

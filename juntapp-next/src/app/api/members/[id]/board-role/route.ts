@@ -19,7 +19,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
-  if (!rateLimit(`board-role:${user.id}`, 20, 60_000).allowed) {
+  if (!(await rateLimit(`board-role:${user.id}`, 20, 60_000)).allowed) {
     return NextResponse.json({ error: 'Espera un momento antes de cambiar otro cargo.' }, { status: 429 });
   }
 

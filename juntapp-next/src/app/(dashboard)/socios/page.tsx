@@ -1,3 +1,4 @@
+import { currentChileBillingPeriod } from '@/lib/billing-period';
 import { createClient } from '@/lib/supabase/server';
 import type { Metadata } from 'next';
 import SociosClient from '@/components/dashboard/socios/SociosClient';
@@ -22,7 +23,10 @@ export default async function SociosPage() {
     .eq('junta_id', profile?.junta_id)
     .order('name', { ascending: true });
 
-  const period = `${new Date().toISOString().slice(0, 7)}-01`;
+  const { data: boardContacts } = profile?.role === 'vecino' ? await supabase.rpc('board_contacts', { p_junta_id: profile.junta_id }) : { data: [] };
+  const roster = profile?.role === 'dirigente' ? (socios ?? []) : [...(socios ?? []), ...(boardContacts ?? [])];
+
+  const period = `${currentChileBillingPeriod()}-01`;
   const { data: mercadoPagoDues } = await supabase
     .from('member_dues')
     .select('household_id')
@@ -38,7 +42,7 @@ export default async function SociosPage() {
     .eq('status', 'paid')
     .not('household_id', 'is', null);
   const paidHouseholdIds = new Set((paidDues ?? []).map((due) => due.household_id));
-  const sociosWithCurrentStatus = (socios ?? []).map((socio) => ({
+  const sociosWithCurrentStatus = roster.map((socio) => ({
     ...socio,
     cuota_status: paidHouseholdIds.has(socio.household_id) ? 'al_dia' as const : 'pendiente' as const,
   }));

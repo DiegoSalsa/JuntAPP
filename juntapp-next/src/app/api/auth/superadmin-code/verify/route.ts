@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     ?? request.headers.get('x-real-ip')
     ?? 'local';
-  const limit = rateLimit(`superadmin-code-verify:${clientIp}`, 15, 15 * 60_000);
+  const limit = await rateLimit(`superadmin-code-verify:${clientIp}`, 15, 15 * 60_000);
   if (!limit.allowed) {
     return NextResponse.json(
       { error: 'Demasiados intentos de verificación. Espera 15 minutos.' },
