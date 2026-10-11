@@ -11,6 +11,11 @@ const socios = read('src', 'app', '(dashboard)', 'socios', 'page.tsx');
 const consultas = read('src', 'app', '(dashboard)', 'consultas', 'page.tsx');
 const builder = read('src', 'components', 'website', 'WebsiteBuilder.tsx');
 const shell = read('src', 'components', 'original', 'OriginalDashboardShell.tsx');
+const websiteDraftMigration = readFromRepo('backend', 'supabase', 'migrations', '20261012010000_website_draft_published_snapshot.sql');
+
+function readFromRepo(...parts) {
+ return fs.readFileSync(path.resolve(root, '..', ...parts), 'utf8');
+}
 
 assert.match(inicio, /rpc\('treasury_summary'/);
 assert.doesNotMatch(inicio, /transactions.*limit\(1000\)/s);
@@ -22,7 +27,10 @@ assert.match(socios, /name\.ilike/);
 assert.match(consultas, /rpc\('poll_overview'/);
 assert.doesNotMatch(consultas, /Promise\.all\(\(polls \|\| \[\]\)\.map/);
 assert.match(builder, /save\(mode: 'draft'\s*\|\s*'publish'\s*\|\s*'unpublish'/);
-assert.match(builder, /published\s*:\s*nextPublished/);
+assert.match(builder, /draft_content/);
+assert.match(builder, /draft_content:null/);
+assert.match(websiteDraftMigration, /ADD COLUMN IF NOT EXISTS draft_content JSONB/);
+assert.match(websiteDraftMigration, /ADD COLUMN IF NOT EXISTS draft_template TEXT/);
 assert.match(builder, /Despublicar/);
 assert.match(shell, /count: 'exact'/);
 assert.match(shell, /setUnreadCount\(count \?\? 0\)/);

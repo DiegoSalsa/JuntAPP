@@ -32,7 +32,38 @@ const palettes: { name: string; colors: WebsiteTheme }[] = [
  { name: 'Comunitaria', colors: { primary:'#5b235f',accent:'#e85d75',background:'#fff7f8',text:'#311b31' } },
  { name: 'Municipal', colors: { primary:'#173b67',accent:'#d97706',background:'#f8fafc',text:'#172033' } },
 ];
-type PageData = { template?: WebsiteTemplate; content?: WebsiteContent; theme?: WebsiteTheme; logo_url?: string | null; hero_image_url?: string | null; gallery?: string[]; published?: boolean } | null;
+type PageData = {
+ template?: WebsiteTemplate;
+ content?: WebsiteContent;
+ theme?: WebsiteTheme;
+ logo_url?: string | null;
+ hero_image_url?: string | null;
+ gallery?: string[];
+ published?: boolean;
+ draft_template?: WebsiteTemplate | null;
+ draft_content?: WebsiteContent | null;
+ draft_theme?: WebsiteTheme | null;
+ draft_logo_url?: string | null;
+ draft_hero_image_url?: string | null;
+ draft_gallery?: string[] | null;
+} | null;
+type WebsitePageUpsert = {
+ junta_id: string;
+ published: boolean;
+ updated_at: string;
+ template?: WebsiteTemplate;
+ content?: WebsiteContent;
+ theme?: WebsiteTheme;
+ logo_url?: string | null;
+ hero_image_url?: string | null;
+ gallery?: string[];
+ draft_template?: WebsiteTemplate | null;
+ draft_content?: WebsiteContent | null;
+ draft_theme?: WebsiteTheme | null;
+ draft_logo_url?: string | null;
+ draft_hero_image_url?: string | null;
+ draft_gallery?: string[] | null;
+};
 
 function editorSnapshot(template: WebsiteTemplate, content: WebsiteContent, theme: WebsiteTheme, logo: string, hero: string, gallery: string[]) {
  return JSON.stringify({ template, content, theme, logo, hero, gallery });
@@ -53,10 +84,11 @@ async function convertToWebP(file: File, maxDimension = 1920) {
 }
 
 export default function WebsiteBuilder({ juntaId, juntaName, slug, plan, initial }: { juntaId: string; juntaName: string; slug: string; plan: 'web'|'juntapp_web'; initial: PageData }) {
- const [template, setTemplate] = useState<WebsiteTemplate>(initial?.template ?? 'comunidad'); const [content, setContent] = useState<WebsiteContent>({ ...DEFAULT_CONTENT, ...initial?.content, newsItems: initial?.content?.newsItems ?? [] });
- const [theme, setTheme] = useState<WebsiteTheme>({ ...DEFAULT_THEME, ...initial?.theme }); const [logo, setLogo] = useState(initial?.logo_url ?? ''); const [hero, setHero] = useState(initial?.hero_image_url ?? '');
+ const initialContent = initial?.draft_content ?? initial?.content; const initialTheme = initial?.draft_theme ?? initial?.theme;
+ const [template, setTemplate] = useState<WebsiteTemplate>(initial?.draft_template ?? initial?.template ?? 'comunidad'); const [content, setContent] = useState<WebsiteContent>({ ...DEFAULT_CONTENT, ...initialContent, newsItems: initialContent?.newsItems ?? [] });
+ const [theme, setTheme] = useState<WebsiteTheme>({ ...DEFAULT_THEME, ...initialTheme }); const [logo, setLogo] = useState(initial?.draft_logo_url ?? initial?.logo_url ?? ''); const [hero, setHero] = useState(initial?.draft_hero_image_url ?? initial?.hero_image_url ?? '');
  const [selectedColor, setSelectedColor] = useState<keyof WebsiteTheme>('primary');
- const [gallery, setGallery] = useState<string[]>(initial?.gallery ?? []); const [published, setPublished] = useState(initial?.published ?? false); const [tab, setTab] = useState<'design'|'content'|'news'|'media'>('design'); const [message, setMessage] = useState(''); const [saving, setSaving] = useState(false);
+ const [gallery, setGallery] = useState<string[]>(initial?.draft_gallery ?? initial?.gallery ?? []); const [published, setPublished] = useState(initial?.published ?? false); const [tab, setTab] = useState<'design'|'content'|'news'|'media'>('design'); const [message, setMessage] = useState(''); const [saving, setSaving] = useState(false);
  const [savedSnapshot, setSavedSnapshot] = useState(() => editorSnapshot(template, content, theme, logo, hero, gallery));
  const currentSnapshot = editorSnapshot(template, content, theme, logo, hero, gallery);
  const hasUnsavedChanges = currentSnapshot !== savedSnapshot;
@@ -76,7 +108,13 @@ export default function WebsiteBuilder({ juntaId, juntaName, slug, plan, initial
   setSaving(true); setMessage('Guardando…');
   const nextPublished = mode === 'publish' ? true : mode === 'unpublish' ? false : published;
   try {
-   const { error } = await createClient().from('website_pages').upsert({ junta_id:juntaId, template, content, theme, logo_url:logo||null, hero_image_url:hero||null, gallery, published:nextPublished, updated_at:new Date().toISOString() }, { onConflict:'junta_id' });
+   const draft = { draft_template:template, draft_content:content, draft_theme:theme, draft_logo_url:logo||null, draft_hero_image_url:hero||null, draft_gallery:gallery };
+   const payload: WebsitePageUpsert = mode === 'draft'
+    ? { junta_id:juntaId, ...draft, published:nextPublished, updated_at:new Date().toISOString() }
+    : mode === 'publish'
+      ? { junta_id:juntaId, template, content, theme, logo_url:logo||null, hero_image_url:hero||null, gallery, published:true, draft_template:null, draft_content:null, draft_theme:null, draft_logo_url:null, draft_hero_image_url:null, draft_gallery:null, updated_at:new Date().toISOString() }
+      : { junta_id:juntaId, ...draft, published:false, updated_at:new Date().toISOString() };
+   const { error } = await createClient().from('website_pages').upsert(payload, { onConflict:'junta_id' });
    if (error) { setMessage(error.message || 'No fue posible guardar los cambios.'); return; }
    setPublished(nextPublished); setSavedSnapshot(editorSnapshot(template, content, theme, logo, hero, gallery));
    if (mode === 'draft') { setMessage('Borrador guardado. La versión pública se mantiene.'); return; }
