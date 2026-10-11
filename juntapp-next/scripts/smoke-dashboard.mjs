@@ -160,7 +160,7 @@ try {
 
   await page.screenshot({ path: path.resolve('.test-artifacts/dashboard-mobile.png'), fullPage: true });
   assert(pageErrors.length === 0, `Errores del navegador: ${pageErrors.join(' | ')}`);
-  assert(!consoleErrors.some((message) => /hydration|server rendered|didn't match/i.test(message)), `Errores de hidrataciÃ³n: ${consoleErrors.join(' | ')}`);
+  assert(!consoleErrors.some((message) => /hydration|server rendered|didn't match/i.test(message)), `Errores de hidratación: ${consoleErrors.join(' | ')}`);
   assert(failedRequests.length === 0, `Peticiones fallidas: ${failedRequests.join(' | ')}`);
   console.log('SMOKE_OK routes=5 navigation=ok hydration=ok transaction=create consultation=create+answer announcement=create notifications=realtime modals=ok tour=ok mobile-overflow=ok');
 } finally {

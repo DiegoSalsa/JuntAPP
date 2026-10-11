@@ -18,12 +18,12 @@ const manualDueSchema = z.object({
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Debes iniciar sesiÃ³n.' }, { status: 401 });
+  if (!user) return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
   if (!(await rateLimit(`manual-due:${user.id}`, 20, 60_000)).allowed) {
     return NextResponse.json({ error: 'Demasiados cambios seguidos. Espera un momento.' }, { status: 429 });
   }
   const parsed = manualDueSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: 'Selecciona una acciÃ³n y medio de pago vÃ¡lidos.' }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: 'Selecciona una acción y medio de pago válidos.' }, { status: 400 });
   const { data: currentProfile } = await supabase.from('profiles').select('junta_id, role, membership_status').eq('id', user.id).eq('membership_status', 'active').single();
   if (!currentProfile || currentProfile.role !== 'dirigente') {
     return NextResponse.json({ error: 'Solo la directiva puede registrar pagos manuales.' }, { status: 403 });
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     }));
     await sendPushToUsers((recipients ?? []).map((recipient) => recipient.id), {
       title: 'Cuotas del domicilio registradas',
-      message: `La directiva confirmÃ³ ${periodLabel}.`,
+      message: `La directiva confirmó ${periodLabel}.`,
       action: '/tesoreria',
       tag: `cuota-manual-batch:${batchResult?.[0]?.batch_id ?? target.id}`,
     });

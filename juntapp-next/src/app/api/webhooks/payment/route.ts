@@ -34,19 +34,19 @@ export async function POST(request: Request) {
 
   const rawBody = await request.text();
   if (!signatureIsValid(rawBody, request.headers.get('x-juntapp-signature'), secret)) {
-    return NextResponse.json({ error: 'Firma invÃ¡lida' }, { status: 401 });
+    return NextResponse.json({ error: 'Firma inválida' }, { status: 401 });
   }
 
   let json: unknown;
   try {
     json = JSON.parse(rawBody);
   } catch {
-    return NextResponse.json({ error: 'JSON invÃ¡lido' }, { status: 400 });
+    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
   }
 
   const parsed = paymentSchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Evento invÃ¡lido', details: z.flattenError(parsed.error) }, { status: 400 });
+    return NextResponse.json({ error: 'Evento inválido', details: z.flattenError(parsed.error) }, { status: 400 });
   }
 
   try {
