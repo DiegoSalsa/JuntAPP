@@ -50,7 +50,7 @@ export default async function SociosPage({ searchParams }: { searchParams: Promi
   const paidHouseholdIds = new Set((paidDues ?? []).map((due) => due.household_id));
   if (isDirigente && due) {
     rosterQuery = due === 'al_dia'
-      ? rosterQuery.in('household_id', [...paidHouseholdIds])
+      ? rosterQuery.in('household_id', paidHouseholdIds.size ? [...paidHouseholdIds] : ['00000000-0000-0000-0000-000000000000'])
       : paidHouseholdIds.size ? rosterQuery.not('household_id', 'in', `(${[...paidHouseholdIds].join(',')})`) : rosterQuery;
   }
   const { data: socios, count: totalSocios } = isDirigente ? await rosterQuery : { data: [], count: 0 };
