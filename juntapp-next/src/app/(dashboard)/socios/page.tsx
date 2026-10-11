@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 type RosterRow = Profile & { household_created_at?: string; total_count?: number };
-type DueHistoryRow = { household_id: string; period: string; status: string; amount: number | string | null; payment_source: string | null; mercadopago_payment_id: string | null; payment_batch_id: string | null };
+type DueHistoryRow = { household_id: string; period: string; status: string; amount: number | string | null; payment_source: string | null; payment_batch_id: string | null; total_count?: number | string | null };
 
 export default async function SociosPage({ searchParams }: { searchParams: Promise<{ page?: string; q?: string; role?: string; position?: string; due?: string }> }) {
   const supabase = await createClient();
@@ -66,9 +66,24 @@ export default async function SociosPage({ searchParams }: { searchParams: Promi
   // user's household, which covers payment actions without a global query.
   const pageHouseholdIds = [...new Set(roster.map((socio) => socio.household_id).filter(Boolean))];
   if (profile?.household_id && !pageHouseholdIds.includes(profile.household_id)) pageHouseholdIds.push(profile.household_id);
-  const { data: dueHistory } = pageHouseholdIds.length
-    ? await supabase.rpc('junta_due_history', { p_household_ids: pageHouseholdIds })
-    : { data: [] };
+  const dueHistory: DueHistoryRow[] = [];
+  if (pageHouseholdIds.length) {
+    const historyPageSize = 200;
+    let offset = 0;
+    while (true) {
+      const { data, error } = await supabase.rpc('junta_due_history', {
+        p_household_ids: pageHouseholdIds,
+        p_offset: offset,
+        p_limit: historyPageSize,
+      });
+      if (error) break;
+      const rows = (data ?? []) as DueHistoryRow[];
+      dueHistory.push(...rows);
+      const total = Number(rows[0]?.total_count ?? dueHistory.length);
+      if (!rows.length || dueHistory.length >= total || rows.length < historyPageSize) break;
+      offset += historyPageSize;
+    }
+  }
   const householdCreatedAtById = Object.fromEntries([
     ...rosterPage.filter((socio) => socio.household_id && socio.household_created_at).map((socio) => [socio.household_id, socio.household_created_at!] as const),
     ...(currentHousehold ? [[currentHousehold.id, currentHousehold.created_at] as const] : []),
@@ -94,7 +109,7 @@ export default async function SociosPage({ searchParams }: { searchParams: Promi
       junta={(Array.isArray(profile?.juntas) ? profile.juntas[0] : profile?.juntas)!}
       applications={applications ?? []}
       householdCreatedAtById={householdCreatedAtById}
-      dueHistory={(dueHistory as DueHistoryRow[] ?? []).map((due) => ({ household_id: due.household_id, period: due.period, status: due.status, amount: Number(due.amount ?? 0), payment_source: due.payment_source, mercadopago_payment_id: due.mercadopago_payment_id, payment_batch_id: due.payment_batch_id }))}
+      dueHistory={dueHistory.map((due) => ({ household_id: due.household_id, period: due.period, status: due.status, amount: Number(due.amount ?? 0), payment_source: due.payment_source, payment_batch_id: due.payment_batch_id }))}
       totalSocios={totalSocios}
       page={page}
       pageSize={pageSize}

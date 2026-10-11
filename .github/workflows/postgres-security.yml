@@ -1,0 +1,66 @@
+name: PostgreSQL security validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'mejoras/**'
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-postgres:
+    name: Fresh PostgreSQL 17 migrations and role checks
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DUE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      DUE_TEST_PSQL: psql
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: juntapp-next/package-lock.json
+      - name: Install dependencies
+        working-directory: juntapp-next
+        run: npm ci
+      - name: Run isolated database checks
+        working-directory: juntapp-next
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:dues:db 2>&1 | tee postgres-security.log
+          grep -q 'DUE_TEST_DB_RESULT=PASSED isolated_database=true' postgres-security.log
+      - name: Publish database test summary
+        if: always()
+        working-directory: juntapp-next
+        shell: bash
+        run: |
+          {
+            echo '## PostgreSQL security validation'
+            echo
+            if [ -f postgres-security.log ]; then
+              cat postgres-security.log
+            else
+              echo 'No database test output was produced.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

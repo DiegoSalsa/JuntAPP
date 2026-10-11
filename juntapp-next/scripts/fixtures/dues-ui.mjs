@@ -70,7 +70,12 @@ export async function startFixture({ serve = false } = {}) {
         const offset = Number(input.p_offset ?? 0); const limit = Number(input.p_limit ?? 50); const total = rows.length;
         res.end(JSON.stringify(rows.slice(offset, offset + limit).map((profile) => ({ ...profile, cuota_status: dues.some((item) => item.household_id === profile.household_id && item.status === 'paid' && item.period === input.p_period) ? 'al_dia' : 'pendiente', household_created_at: households.find((household) => household.id === profile.household_id)?.created_at ?? null, total_count: total })))); return;
       }
-      if (rpc === 'junta_due_history') { const ids = input.p_household_ids ?? []; res.end(JSON.stringify(dues.filter((item) => ids.includes(item.household_id)))); return; }
+      if (rpc === 'junta_due_history') {
+        const ids = input.p_household_ids ?? [];
+        const matching = dues.filter((item) => ids.includes(item.household_id)).sort((a, b) => a.household_id.localeCompare(b.household_id) || b.period.localeCompare(a.period));
+        const offset = Number(input.p_offset ?? 0); const limit = Math.min(Math.max(Number(input.p_limit ?? 200), 1), 200);
+        res.end(JSON.stringify(matching.slice(offset, offset + limit).map((item) => ({ ...item, mercadopago_payment_id: undefined, total_count: matching.length })))); return;
+      }
       if (rpc === 'junta_has_secretary') { res.end('false'); return; }
       if (rpc === 'junta_due_household_counts') {
         const total = households.length; const paid = households.filter((household) => dues.some((item) => item.household_id === household.id && item.period === input.p_period && item.status === 'paid')).length;

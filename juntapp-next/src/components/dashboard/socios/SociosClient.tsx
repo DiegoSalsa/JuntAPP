@@ -12,7 +12,7 @@ type AssignableBoardPosition = Exclude<BoardPosition, 'presidente'>;
 
 type BoardModalMode = 'assign' | 'change' | 'remove';
 type ManualAction = 'paid' | 'pending';
-type DueHistoryItem = { household_id: string; period: string; status: string; amount: number; payment_source?: string | null; mercadopago_payment_id?: string | null; payment_batch_id?: string | null };
+type DueHistoryItem = { household_id: string; period: string; status: string; amount: number; payment_source?: string | null; payment_batch_id?: string | null };
 
 export default function SociosClient({ socios, currentProfile, junta, applications, householdCreatedAtById, dueHistory, totalSocios, page, pageSize, initialSearch, initialFilters, hasSecretary }: { socios: Profile[]; currentProfile: Profile; junta: Junta; applications: MembershipApplication[]; householdCreatedAtById: Record<string, string>; dueHistory: DueHistoryItem[]; totalSocios: number; page: number; pageSize: number; initialSearch: string; initialFilters: { role: string; position: string; due: string }; hasSecretary: boolean }) {
   const [showModal, setShowModal] = useState(false);
@@ -193,7 +193,7 @@ export default function SociosClient({ socios, currentProfile, junta, applicatio
     for (const generatedDate = new Date(firstGeneratedDate); generatedDate <= lastGeneratedDate; generatedDate.setUTCMonth(generatedDate.getUTCMonth() + 1)) {
       const period = `${generatedDate.getUTCFullYear()}-${String(generatedDate.getUTCMonth() + 1).padStart(2, '0')}-01`;
       if (!known.some((due) => due.period === period)) {
-        options.push({ household_id: socio.household_id, period, status: 'pending', amount: Number(junta.monthly_due_amount ?? 0), payment_source: null, mercadopago_payment_id: null });
+        options.push({ household_id: socio.household_id, period, status: 'pending', amount: Number(junta.monthly_due_amount ?? 0), payment_source: null });
       }
     }
     return options.sort((left, right) => left.period.localeCompare(right.period));

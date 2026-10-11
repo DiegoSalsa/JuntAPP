@@ -16,6 +16,7 @@ const shell = read('src', 'components', 'original', 'OriginalDashboardShell.tsx'
 const websiteDraftMigration = readFromRepo('backend', 'supabase', 'migrations', '20261012010000_website_draft_published_snapshot.sql');
 const treasuryAggregatesMigration = readFromRepo('backend', 'supabase', 'migrations', '20261012020000_treasury_chart_aggregates.sql');
 const rosterMigration = readFromRepo('backend', 'supabase', 'migrations', '20261012030000_roster_pagination_aggregates.sql');
+const rosterAuthorizationMigration = readFromRepo('backend', 'supabase', 'migrations', '20261012040000_roster_rpc_authorization.sql');
 const sociosClient = read('src', 'components', 'dashboard', 'socios', 'SociosClient.tsx');
 const dashboardDbTest = read('scripts', 'test-due-payment-batches.sql');
 
@@ -61,7 +62,15 @@ assert.match(treasuryAggregatesMigration, /CREATE OR REPLACE FUNCTION public\.tr
 assert.match(rosterMigration, /CREATE OR REPLACE FUNCTION public\.junta_roster_page/);
 assert.match(rosterMigration, /CREATE OR REPLACE FUNCTION public\.junta_due_history/);
 assert.match(rosterMigration, /CREATE OR REPLACE FUNCTION public\.junta_has_secretary/);
-assert.match(dashboardDbTest, /generate_series\(1, 1205\)/);
+assert.match(rosterAuthorizationMigration, /current_user_role\(\) = 'dirigente'/);
+assert.match(rosterAuthorizationMigration, /p_offset INTEGER DEFAULT 0/);
+assert.match(rosterAuthorizationMigration, /DROP FUNCTION public\.junta_due_history/);
+assert.doesNotMatch(rosterAuthorizationMigration, /mercadopago_payment_id/);
+assert.match(dashboardDbTest, /generate_series\(1, 1167\)/);
+assert.match(dashboardDbTest, /mp-income-fixture/);
+assert.match(dashboardDbTest, /SET ROLE authenticated/);
+assert.match(dashboardDbTest, /SET ROLE anon/);
+assert.match(dashboardDbTest, /SET ROLE service_role/);
 assert.match(dashboardDbTest, /dashboard aggregate PostgreSQL integration checks passed/);
 
 const period = currentChileBillingPeriodStart(new Date('2026-10-11T03:00:00Z'));
