@@ -162,13 +162,16 @@ export default function SociosClient({ socios, currentProfile, junta, paidByMerc
   }
 
   function manualDueOptions(socio: Profile) {
-    const current = new Date(`${currentChileBillingPeriod()}-01T00:00:00Z`);
-    return Array.from({ length: 12 }, (_, index) => {
-      const date = new Date(Date.UTC(current.getUTCFullYear(), current.getUTCMonth() - (11 - index), 1));
-      const period = date.toISOString().slice(0, 10);
-      const existing = dueHistory.find((due) => due.household_id === socio.household_id && due.period === period);
-      return { household_id: socio.household_id, period, status: existing?.status ?? 'pending', amount: existing?.amount ?? Number(junta.monthly_due_amount ?? 0) };
-    }).filter((due) => due.status !== 'paid');
+    const current = `${currentChileBillingPeriod()}-01`;
+    const options = dueHistory
+      .filter((due) => due.household_id === socio.household_id)
+      .filter((due, index, all) => all.findIndex((candidate) => candidate.period === due.period) === index)
+      .map((due) => ({ ...due, period: due.period.slice(0, 10) }))
+      .filter((due) => due.status !== 'paid');
+    if (!options.some((due) => due.period === current)) {
+      options.push({ household_id: socio.household_id, period: current, status: 'pending', amount: Number(junta.monthly_due_amount ?? 0) });
+    }
+    return options.sort((left, right) => left.period.localeCompare(right.period));
   }
 
   return (

@@ -13,6 +13,7 @@ type MercadoPagoPayment = {
   currency_id: string;
   collector_id: number;
   date_approved?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export async function processMemberDuePayment(paymentId: string, mercadoPagoUserId?: string | number) {
@@ -42,7 +43,7 @@ export async function processMemberDuePayment(paymentId: string, mercadoPagoUser
     }
     const { data: batch, error: batchError } = await admin
       .from('due_payment_batches')
-      .select('id, junta_id, household_id, total_amount, status, mercadopago_payment_id, transaction_id')
+      .select('id, junta_id, household_id, total_amount, status, mercadopago_payment_id, transaction_id, checkout_attempt')
       .eq('id', batchId)
       .eq('junta_id', batchJuntaId)
       .eq('household_id', batchHouseholdId)
@@ -68,7 +69,8 @@ export async function processMemberDuePayment(paymentId: string, mercadoPagoUser
         p_payment_id: String(payment.id),
       });
       if (error) throw new Error(error.message);
-    } else if (['rejected', 'cancelled'].includes(payment.status) && batch.status !== 'approved') {
+    } else if (['rejected', 'cancelled'].includes(payment.status) && batch.status !== 'approved'
+      && (!payment.metadata?.checkout_attempt || Number(payment.metadata.checkout_attempt) >= Number(batch.checkout_attempt ?? 0))) {
       const { error } = await admin.from('due_payment_batches').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', batch.id).in('status', ['pending', 'preference_created']);
       if (error) throw new Error(error.message);
     }

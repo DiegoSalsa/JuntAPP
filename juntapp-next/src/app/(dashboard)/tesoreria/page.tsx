@@ -37,8 +37,13 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
     .from('member_dues')
     .select('*')
     .eq('household_id', profile?.household_id)
-    .order('period', { ascending: true })
-    .limit(24);
+    .order('period', { ascending: true });
+  const { data: paymentBatches } = profile ? await createAdminClient()
+    .from('due_payment_batches')
+    .select('id, total_amount, status, payment_source, mercadopago_payment_id, created_at, confirmed_at, due_payment_batch_items(period, amount)')
+    .eq('junta_id', profile.junta_id)
+    .eq('household_id', profile.household_id)
+    .order('created_at', { ascending: false }) : { data: [] };
   const { data: mercadoPagoAccount } = profile ? await createAdminClient()
     .from('mercadopago_junta_accounts')
     .select('mercadopago_user_id, connected_at')
@@ -87,6 +92,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
       junta={junta!}
       currentDue={currentDue ?? null}
       dueHistory={dueHistory ?? []}
+      paymentBatches={paymentBatches ?? []}
       paymentReturn={params.cuota ?? null}
       connectionReturn={params.mercadopago ?? null}
       mercadoPagoConnection={{

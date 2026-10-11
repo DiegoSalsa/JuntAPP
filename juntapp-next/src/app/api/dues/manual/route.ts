@@ -69,21 +69,19 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ success: true, transactionId: batchResult?.[0]?.transaction_id ?? null, status: 'al_dia', periods });
   }
-  const period = periods[0];
-  const { data: due } = await admin.from('member_dues').select('status, mercadopago_payment_id').eq('household_id', target.id).eq('period', period).maybeSingle();
-  if (due?.status === 'paid' && due.mercadopago_payment_id) {
-    return NextResponse.json({ error: 'Esta cuota fue confirmada por Mercado Pago y estÃ¡ protegida contra cambios manuales.' }, { status: 409 });
-  }
-  if (due?.status === 'preference_created') {
-    return NextResponse.json({ error: 'El domicilio tiene un cobro en proceso. Espera su resultado antes de registrar un pago manual.' }, { status: 409 });
-  }
-
-  const { data: transactionId, error } = await admin.rpc('set_manual_household_due', {
-    p_household_id: target.id,
-    p_junta_id: currentProfile.junta_id,
-    p_action: parsed.data.action,
-    p_method: null,
-  });
+  const { data: transactionId, error } = parsed.data.action === 'pending'
+    ? await admin.rpc('reverse_manual_household_dues', {
+      p_household_id: target.id,
+      p_junta_id: currentProfile.junta_id,
+      p_periods: periods,
+      p_actor: user.id,
+    })
+    : await admin.rpc('set_manual_household_due', {
+      p_household_id: target.id,
+      p_junta_id: currentProfile.junta_id,
+      p_action: parsed.data.action,
+      p_method: null,
+    });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ success: true, transactionId, status: 'pendiente' });
 }

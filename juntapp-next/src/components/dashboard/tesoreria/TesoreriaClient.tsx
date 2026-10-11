@@ -10,7 +10,9 @@ import type { Junta, MemberDue, MercadoPagoConnectionSummary, Profile, Transacti
 import CashflowChart from './CashflowChart';
 import ExpenseChart from './ExpenseChart';
 
-export default function TesoreriaClient({ transactions, documents, currentProfile, junta, currentDue, dueHistory, paymentReturn, connectionReturn, mercadoPagoConnection, treasurySyncStatus, totalHouseholds, paidHouseholds }: { transactions: Transaction[]; documents: TreasuryDocument[]; currentProfile: Profile; junta: Junta; currentDue: MemberDue | null; dueHistory: MemberDue[]; paymentReturn: string | null; connectionReturn: string | null; mercadoPagoConnection: MercadoPagoConnectionSummary; treasurySyncStatus: TreasurySyncStatus; totalHouseholds: number; paidHouseholds: number }) {
+type PaymentBatchSummary = { id: string; total_amount: number | string; status: string; payment_source: string | null; mercadopago_payment_id: string | null; created_at: string; confirmed_at: string | null; due_payment_batch_items?: { period: string; amount: number | string }[] };
+
+export default function TesoreriaClient({ transactions, documents, currentProfile, junta, currentDue, dueHistory, paymentBatches, paymentReturn, connectionReturn, mercadoPagoConnection, treasurySyncStatus, totalHouseholds, paidHouseholds }: { transactions: Transaction[]; documents: TreasuryDocument[]; currentProfile: Profile; junta: Junta; currentDue: MemberDue | null; dueHistory: MemberDue[]; paymentBatches: PaymentBatchSummary[]; paymentReturn: string | null; connectionReturn: string | null; mercadoPagoConnection: MercadoPagoConnectionSummary; treasurySyncStatus: TreasurySyncStatus; totalHouseholds: number; paidHouseholds: number }) {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [documentLoading, setDocumentLoading] = useState(false);
@@ -24,6 +26,7 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
   const [selectedPeriods, setSelectedPeriods] = useState<string[]>(() => currentDue?.status === 'paid' ? [] : [`${currentChileBillingPeriod()}-01`]);
+  const [calendarYear, setCalendarYear] = useState(() => Number(currentChileBillingPeriod().slice(0, 4)));
   const router = useRouter();
   const isDirigente = currentProfile.role === 'dirigente';
   const canConnectMercadoPago = isDirigente && (junta.owner_id === currentProfile.id || currentProfile.board_position === 'presidente');
@@ -35,6 +38,11 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
     return transactions.filter((transaction) => transaction.date.startsWith(month));
   }, [transactions]);
   const monthlyStats = useMemo(() => calculateTreasuryStats(currentMonthTransactions), [currentMonthTransactions]);
+  const yearOptions = useMemo(() => {
+    const currentYear = Number(currentChileBillingPeriod().slice(0, 4));
+    const earliestYear = dueHistory.length ? Math.min(...dueHistory.map((due) => Number(due.period.slice(0, 4)))) : currentYear;
+    return Array.from({ length: currentYear + 2 - earliestYear }, (_, index) => earliestYear + index);
+  }, [dueHistory]);
 
   async function handleAddTransaction(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setLoading(true); const form = new FormData(event.currentTarget);
@@ -56,22 +64,27 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
   const calendarPeriods = useMemo(() => {
     const current = new Date(`${currentChileBillingPeriod()}-01T00:00:00Z`);
     const known = new Map(dueHistory.map((due) => [due.period.slice(0, 10), due]));
-    return Array.from({ length: 13 }, (_, index) => {
-      const date = new Date(current);
-      date.setUTCMonth(current.getUTCMonth() - 6 + index);
+    const earliestKnown = dueHistory.reduce((min, due) => Math.min(min, new Date(due.period.slice(0, 10)).getTime()), current.getTime());
+    const maxSelectable = new Date(current);
+    maxSelectable.setUTCMonth(maxSelectable.getUTCMonth() + 12);
+    return Array.from({ length: 12 }, (_, index) => {
+      const date = new Date(Date.UTC(calendarYear, index, 1));
       const period = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-01`;
-      return { period, due: known.get(period) ?? null };
+      const dateTime = date.getTime();
+      const selectable = dateTime <= maxSelectable.getTime()
+        && (Boolean(known.get(period)) || dateTime >= earliestKnown);
+      return { period, due: known.get(period) ?? null, selectable };
     });
-  }, [dueHistory]);
+  }, [calendarYear, dueHistory]);
   const payableSelectedPeriods = selectedPeriods.filter((period) => {
-    const due = calendarPeriods.find((entry) => entry.period === period)?.due;
-    return !due || ['pending', 'rejected', 'refunded'].includes(due.status);
+    const entry = calendarPeriods.find((candidate) => candidate.period === period);
+    const due = entry?.due;
+    return Boolean(entry?.selectable) && (!due || ['pending', 'rejected', 'refunded'].includes(due.status));
   });
   async function startDuePayment() {
     setPaymentLoading(true); setPaymentError('');
     const periods = payableSelectedPeriods.length ? payableSelectedPeriods : [`${currentChileBillingPeriod()}-01`];
-    const endpoint = periods.length > 1 ? '/api/dues/batch-checkout' : '/api/dues/checkout';
-    const response = await fetch(endpoint, { method: 'POST', headers: periods.length > 1 ? { 'Content-Type': 'application/json' } : undefined, body: periods.length > 1 ? JSON.stringify({ periods }) : undefined });
+    const response = await fetch('/api/dues/batch-checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ periods }) });
     const result = await response.json();
     if (!response.ok) { setPaymentError(result.error ?? 'No fue posible iniciar el pago.'); setPaymentLoading(false); return; }
     window.location.assign(result.checkoutUrl);
@@ -97,15 +110,17 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
 
     <div className="card shadow-box mb-24" aria-labelledby="due-calendar-title">
       <div className="card-header"><div><span className="view-subtitle">Historial por domicilio</span><h3 id="due-calendar-title" className="card-title">Cuotas mensuales</h3><p className="card-subtitle">Selecciona uno o varios perÃ­odos pendientes. Un solo checkout cubrirÃ¡ todos los seleccionados.</p></div><span className="verification-badge manual">{payableSelectedPeriods.length} seleccionados</span></div>
+      <div className="view-actions mb-16"><label className="form-label" htmlFor="due-calendar-year">Año</label><select id="due-calendar-year" className="form-input" value={calendarYear} onChange={(event) => setCalendarYear(Number(event.target.value))}>{yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}</select></div>
       <div className="due-period-grid">
-        {calendarPeriods.map(({ period, due }) => {
+        {calendarPeriods.map(({ period, due, selectable }) => {
           const paid = due?.status === 'paid';
           const inProgress = due?.status === 'preference_created';
           const selected = selectedPeriods.includes(period);
           const label = new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(period));
-          return <label key={period} className={`due-period-card ${paid ? 'paid' : inProgress ? 'pending' : selected ? 'selected' : ''}`}>
-            <input type="checkbox" checked={selected} disabled={paid || inProgress} onChange={() => setSelectedPeriods((current) => selected ? current.filter((value) => value !== period) : [...current, period].sort())} />
+          return <label key={period} className={`due-period-card ${paid ? 'paid' : inProgress ? 'pending' : selected ? 'selected' : !selectable ? 'disabled' : ''}`}>
+            <input type="checkbox" checked={selected} disabled={!selectable || paid || inProgress} onChange={() => setSelectedPeriods((current) => selected ? current.filter((value) => value !== period) : [...current, period].sort())} />
             <span className="due-period-label">{label.charAt(0).toUpperCase() + label.slice(1)}</span>
+            {!selectable && <span className="due-period-status">Sin registro</span>}
             <strong>{formatCurrency(Number(due?.amount ?? junta.monthly_due_amount))}</strong>
             <span className="due-period-status">{paid ? 'âœ“ Pagado' : inProgress ? 'âŒ› En proceso' : due?.status === 'refunded' ? 'â†© Reembolsado' : due?.status === 'rejected' ? '! Rechazado' : 'Pendiente'}</span>
           </label>;
@@ -115,6 +130,8 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
       {!mercadoPagoConnection.connected && <p className="form-help">La directiva debe conectar Mercado Pago antes de iniciar un cobro.</p>}
       {paymentError && <p className="form-error">{paymentError}</p>}
     </div>
+
+    {!!paymentBatches.length && <div className="card shadow-box mb-24" aria-labelledby="payment-receipts-title"><div className="card-header"><div><span className="view-subtitle">Comprobantes internos</span><h3 id="payment-receipts-title" className="card-title">Historial de pagos por períodos</h3></div></div><div className="past-polls-list">{paymentBatches.map((batch) => <article className="past-poll-row" key={batch.id}><div className="past-poll-info"><h4 className="past-poll-title">{batch.status === 'approved' ? 'Pago confirmado' : batch.status === 'refunded' ? 'Pago reembolsado' : batch.status === 'reversed' ? 'Pago revertido' : 'Intento de pago'}</h4><p className="past-poll-desc">{(batch.due_payment_batch_items ?? []).map((item) => item.period.slice(0, 7)).join(', ') || 'Períodos en preparación'} · {formatCurrency(Number(batch.total_amount))}</p><span className="form-help">{batch.payment_source === 'mercadopago' ? 'Mercado Pago' : 'Registro manual'} · {formatDate(batch.confirmed_at ?? batch.created_at)}{batch.mercadopago_payment_id ? ` · Ref. ${batch.mercadopago_payment_id}` : ''}</span></div></article>)}</div></div>}
 
     {isDirigente && <div className="board-position-panel shadow-box mb-24">
       <div>

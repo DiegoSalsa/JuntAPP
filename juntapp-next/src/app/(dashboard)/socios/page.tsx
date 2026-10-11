@@ -34,6 +34,12 @@ export default async function SociosPage() {
     .eq('period', period)
     .eq('status', 'paid')
     .not('mercadopago_payment_id', 'is', null);
+  const { data: mercadoPagoBatches } = await supabase
+    .from('due_payment_batches')
+    .select('household_id')
+    .eq('junta_id', profile?.junta_id)
+    .eq('status', 'approved')
+    .eq('payment_source', 'mercadopago');
   const { data: paidDues } = await supabase
     .from('member_dues')
     .select('household_id')
@@ -45,8 +51,7 @@ export default async function SociosPage() {
     .from('member_dues')
     .select('household_id, period, status, amount')
     .eq('junta_id', profile?.junta_id)
-    .order('period', { ascending: false })
-    .limit(2400);
+    .order('period', { ascending: false });
   const paidHouseholdIds = new Set((paidDues ?? []).map((due) => due.household_id));
   const sociosWithCurrentStatus = roster.map((socio) => ({
     ...socio,
@@ -69,7 +74,10 @@ export default async function SociosPage() {
       socios={sociosWithCurrentStatus}
       currentProfile={currentProfile!}
       junta={(Array.isArray(profile?.juntas) ? profile.juntas[0] : profile?.juntas)!}
-      paidByMercadoPagoHouseholdIds={(mercadoPagoDues ?? []).flatMap((due) => due.household_id ? [due.household_id] : [])}
+      paidByMercadoPagoHouseholdIds={[
+        ...(mercadoPagoDues ?? []).flatMap((due) => due.household_id ? [due.household_id] : []),
+        ...(mercadoPagoBatches ?? []).flatMap((batch) => batch.household_id ? [batch.household_id] : []),
+      ]}
       applications={applications ?? []}
       dueHistory={(dueHistory ?? []).map((due) => ({ household_id: due.household_id, period: due.period, status: due.status, amount: Number(due.amount) }))}
     />

@@ -17,6 +17,10 @@ type PreferenceResponse = {
   cause?: { description?: string }[];
 };
 
+type PaymentSearchResponse = {
+  results?: Array<{ id?: number; status?: string; transaction_amount?: number; currency_id?: string; collector?: { id?: number } }>;
+};
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -40,7 +44,13 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-  const requestKey = `checkout:${periods.join(',')}`;
+  const baseRequestKey = `checkout:${periods.join(',')}`;
+  const { data: priorBatch } = await admin.from('due_payment_batches')
+    .select('status').eq('junta_id', profile.junta_id).eq('household_id', profile.household_id)
+    .like('request_key', `${baseRequestKey}%`).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  const requestKey = priorBatch && ['rejected', 'refunded', 'expired', 'reversed'].includes(priorBatch.status)
+    ? `${baseRequestKey}:retry:${crypto.randomUUID()}`
+    : baseRequestKey;
   const { data: batchId, error: batchError } = await admin.rpc('create_due_payment_batch', {
     p_junta_id: profile.junta_id,
     p_household_id: profile.household_id,
@@ -57,7 +67,7 @@ export async function POST(request: Request) {
     if (!account) return NextResponse.json({ error: 'Tu junta todavía no conectó su cuenta de Mercado Pago.' }, { status: 409 });
     const { data: batch } = await admin
       .from('due_payment_batches')
-      .select('id, total_amount, status, checkout_url, checkout_expires_at, checkout_attempt')
+      .select('id, total_amount, status, checkout_url, checkout_expires_at, checkout_attempt, mercadopago_preference_id')
       .eq('id', batchId)
       .eq('household_id', profile.household_id)
       .single();
@@ -67,22 +77,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ checkoutUrl: batch.checkout_url, batchId: batch.id, total: Number(batch.total_amount), periods });
     }
 
-    if (batch.status === 'preference_created') {
-      return NextResponse.json({ error: 'Ya existe un intento de cobro en proceso. Espera unos segundos y vuelve a consultar.' }, { status: 409 });
+    const expired = batch.status === 'preference_created'
+      && (!batch.checkout_expires_at || new Date(batch.checkout_expires_at).getTime() <= Date.now());
+    let resolvedPreferenceId: string | null = null;
+    if (expired && batch.mercadopago_preference_id) {
+      const searchUrl = new URL('https://api.mercadopago.com/v1/payments/search');
+      searchUrl.searchParams.set('external_reference', `juntapp-due-batch:${batch.id}:${profile.junta_id}:${profile.household_id}`);
+      searchUrl.searchParams.set('sort', 'date_created');
+      searchUrl.searchParams.set('criteria', 'desc');
+      searchUrl.searchParams.set('limit', '50');
+      const searchResponse = await fetch(searchUrl, { headers: { Authorization: `Bearer ${account.access_token}` }, cache: 'no-store' });
+      const payments = await searchResponse.json() as PaymentSearchResponse;
+      if (!searchResponse.ok) return NextResponse.json({ error: 'No fue posible resolver el intento vencido con Mercado Pago.' }, { status: 502 });
+      const live = (payments.results ?? []).find((payment) => ['approved', 'pending', 'in_process', 'authorized'].includes(payment.status ?? ''));
+      if (live?.status && ['pending', 'in_process', 'authorized'].includes(live.status)) {
+        return NextResponse.json({ error: 'El intento anterior aún está abierto en Mercado Pago. Espera su resolución antes de renovar.' }, { status: 409 });
+      }
+      const approved = (payments.results ?? []).find((payment) => payment.status === 'approved');
+      if (approved?.id) {
+        if (Number(approved.transaction_amount) !== Number(batch.total_amount) || approved.currency_id !== 'CLP' || Number(approved.collector?.id) !== Number(account.mercadopago_user_id)) {
+          return NextResponse.json({ error: 'Mercado Pago reportó un importe, moneda o cobrador incompatible.' }, { status: 409 });
+        }
+        const { error: approvalError } = await admin.rpc('record_approved_due_payment_batch', {
+          p_batch_id: batch.id, p_payment_id: String(approved.id), p_paid_at: new Date().toISOString(),
+        });
+        if (approvalError) return NextResponse.json({ error: approvalError.message }, { status: 409 });
+        return NextResponse.json({ error: 'El intento anterior fue confirmado; los períodos ya están pagados.' }, { status: 409 });
+      }
+      resolvedPreferenceId = batch.mercadopago_preference_id;
     }
-    const attempt = Number(batch.checkout_attempt ?? 0) + 1;
-    const { data: claimedBatch, error: claimError } = await admin
-      .from('due_payment_batches')
-      .update({ status: 'preference_created', checkout_attempt: attempt, checkout_url: null, checkout_expires_at: null, updated_at: new Date().toISOString() })
-      .eq('id', batch.id)
-      .eq('checkout_attempt', Number(batch.checkout_attempt ?? 0))
-      .in('status', ['pending', 'rejected', 'refunded'])
-      .select('id, total_amount, status, checkout_attempt')
-      .maybeSingle();
-    if (claimError || !claimedBatch) {
-      return NextResponse.json({ error: 'Otro intento está preparando este cobro. Espera unos segundos y vuelve a intentar.' }, { status: 409 });
+    const { data: claimResult, error: claimError } = await admin.rpc('claim_due_batch_checkout', {
+      p_batch_id: batch.id,
+      p_resolved_preference_id: resolvedPreferenceId,
+    });
+    if (claimError || !claimResult || claimResult.ready) {
+      if (claimResult?.ready && claimResult.checkout_url) return NextResponse.json({ checkoutUrl: claimResult.checkout_url, batchId: batch.id, total: Number(batch.total_amount), periods });
+      return NextResponse.json({ error: claimError?.message ?? 'Otro intento está preparando este cobro. Espera unos segundos y vuelve a intentar.' }, { status: 409 });
     }
-
+    const attempt = Number(claimResult.attempt);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ?? new URL(request.url).origin;
     const webhookUrl = appUrl.startsWith('https://') && process.env.MERCADOPAGO_WEBHOOK_SECRET
       ? `${appUrl}/api/webhooks/mercadopago`
@@ -112,7 +144,7 @@ export async function POST(request: Request) {
         },
         ...(appUrl.startsWith('https://') ? { auto_return: 'approved' } : {}),
         statement_descriptor: 'JUNTAPP CUOTAS',
-        metadata: { purpose: 'household_due_batch', batch_id: batch.id, junta_id: profile.junta_id, household_id: profile.household_id, periods },
+        metadata: { purpose: 'household_due_batch', batch_id: batch.id, checkout_attempt: attempt, junta_id: profile.junta_id, household_id: profile.household_id, periods },
         ...(webhookUrl ? { notification_url: webhookUrl } : {}),
       }),
       cache: 'no-store',
@@ -125,18 +157,19 @@ export async function POST(request: Request) {
       throw new Error(preference.cause?.[0]?.description ?? preference.message ?? 'Mercado Pago no pudo crear el cobro.');
     }
     const expiresAt = new Date(Date.now() + 30 * 60_000).toISOString();
-    const { error: updateError } = await admin.from('due_payment_batches').update({
-      status: 'preference_created',
-      mercadopago_preference_id: preference.id,
-      checkout_url: checkoutUrl,
-      checkout_expires_at: expiresAt,
-      checkout_attempt: attempt,
-      updated_at: new Date().toISOString(),
-    }).eq('id', batch.id).eq('checkout_attempt', attempt).eq('status', 'preference_created');
+    const { error: updateError } = await admin.rpc('complete_due_batch_checkout', {
+      p_batch_id: batch.id,
+      p_attempt: attempt,
+      p_preference_id: preference.id,
+      p_url: checkoutUrl,
+      p_expires_at: expiresAt,
+    });
     if (updateError) throw new Error(updateError.message);
     return NextResponse.json({ checkoutUrl, batchId: batch.id, total: Number(batch.total_amount), periods });
   } catch (error) {
-    await admin.from('due_payment_batches').update({ status: 'pending', checkout_url: null, checkout_expires_at: null, updated_at: new Date().toISOString() }).eq('id', batchId).eq('status', 'preference_created');
+    // Keep the creating lease when the provider call is uncertain. A retry after
+    // the lease uses the same provider idempotency key, so it cannot create a
+    // second checkout for the same attempt.
     return NextResponse.json({ error: error instanceof Error ? error.message : 'No fue posible iniciar el pago.' }, { status: 502 });
   }
 }

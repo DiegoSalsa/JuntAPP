@@ -34,6 +34,12 @@ async function importSettlementRows(juntaId: string, rows: SettlementRow[]) {
   for (const row of rows) {
     const movement = settlementRowToMovement(row);
     if (!movement.sourceId || !movement.transactionType || !movement.net) continue;
+    const isRefund = movement.transactionType.includes('REFUND') || movement.transactionType.includes('CHARGEBACK');
+    const providerOperationType = isRefund
+      ? 'refund'
+      : movement.accountingKind === 'income'
+        ? 'payment'
+        : `event:${movement.eventKey}`;
 
     const transactionValues = {
       junta_id: juntaId,
@@ -52,6 +58,7 @@ async function importSettlementRows(juntaId: string, rows: SettlementRow[]) {
       net_amount: movement.net,
       provider: 'mercadopago',
       provider_transaction_id: movement.sourceId,
+      provider_operation_type: providerOperationType,
       provider_event_key: movement.eventKey,
       external_reference: movement.externalReference || null,
       verification_status: 'reconciled',
@@ -74,7 +81,6 @@ async function importSettlementRows(juntaId: string, rows: SettlementRow[]) {
     });
     if (eventError?.code !== '23505' && eventError) throw new Error(eventError.message);
 
-    const isRefund = movement.transactionType.includes('REFUND') || movement.transactionType.includes('CHARGEBACK');
     const { data: due } = await admin
       .from('member_dues')
       .select('transaction_id, refund_transaction_id')
@@ -87,9 +93,18 @@ async function importSettlementRows(juntaId: string, rows: SettlementRow[]) {
       .eq('junta_id', juntaId)
       .eq('mercadopago_payment_id', movement.sourceId)
       .maybeSingle();
+    const { data: existingOperation } = await admin
+      .from('transactions')
+      .select('id')
+      .eq('junta_id', juntaId)
+      .eq('provider', 'mercadopago')
+      .eq('provider_transaction_id', movement.sourceId)
+      .eq('provider_operation_type', providerOperationType)
+      .eq('accounting_kind', movement.accountingKind)
+      .maybeSingle();
     const linkedTransactionId = isRefund
-      ? due?.refund_transaction_id ?? batch?.refund_transaction_id
-      : due?.transaction_id ?? batch?.transaction_id;
+      ? due?.refund_transaction_id ?? batch?.refund_transaction_id ?? existingOperation?.id
+      : due?.transaction_id ?? batch?.transaction_id ?? existingOperation?.id;
 
     if (linkedTransactionId) {
       const { error } = await admin.from('transactions').update(transactionValues).eq('id', linkedTransactionId);
