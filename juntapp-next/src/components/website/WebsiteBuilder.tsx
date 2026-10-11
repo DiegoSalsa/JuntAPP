@@ -49,7 +49,7 @@ type PageData = {
 } | null;
 type WebsitePageUpsert = {
  junta_id: string;
- published: boolean;
+ published?: boolean;
  updated_at: string;
  template?: WebsiteTemplate;
  content?: WebsiteContent;
@@ -84,9 +84,10 @@ async function convertToWebP(file: File, maxDimension = 1920) {
 }
 
 export default function WebsiteBuilder({ juntaId, juntaName, slug, plan, initial }: { juntaId: string; juntaName: string; slug: string; plan: 'web'|'juntapp_web'; initial: PageData }) {
+ const hasDraft = initial?.draft_content != null;
  const initialContent = initial?.draft_content ?? initial?.content; const initialTheme = initial?.draft_theme ?? initial?.theme;
  const [template, setTemplate] = useState<WebsiteTemplate>(initial?.draft_template ?? initial?.template ?? 'comunidad'); const [content, setContent] = useState<WebsiteContent>({ ...DEFAULT_CONTENT, ...initialContent, newsItems: initialContent?.newsItems ?? [] });
- const [theme, setTheme] = useState<WebsiteTheme>({ ...DEFAULT_THEME, ...initialTheme }); const [logo, setLogo] = useState(initial?.draft_logo_url ?? initial?.logo_url ?? ''); const [hero, setHero] = useState(initial?.draft_hero_image_url ?? initial?.hero_image_url ?? '');
+ const [theme, setTheme] = useState<WebsiteTheme>({ ...DEFAULT_THEME, ...initialTheme }); const [logo, setLogo] = useState((hasDraft ? initial?.draft_logo_url : initial?.logo_url) ?? ''); const [hero, setHero] = useState((hasDraft ? initial?.draft_hero_image_url : initial?.hero_image_url) ?? '');
  const [selectedColor, setSelectedColor] = useState<keyof WebsiteTheme>('primary');
  const [gallery, setGallery] = useState<string[]>(initial?.draft_gallery ?? initial?.gallery ?? []); const [published, setPublished] = useState(initial?.published ?? false); const [tab, setTab] = useState<'design'|'content'|'news'|'media'>('design'); const [message, setMessage] = useState(''); const [saving, setSaving] = useState(false);
  const [savedSnapshot, setSavedSnapshot] = useState(() => editorSnapshot(template, content, theme, logo, hero, gallery));
@@ -106,17 +107,16 @@ export default function WebsiteBuilder({ juntaId, juntaName, slug, plan, initial
  function updateNews(id:string,patch:Partial<WebsiteNewsItem>){setContent((current)=>({...current,newsItems:current.newsItems.map((item)=>item.id===id?{...item,...patch}:item)}));}
  async function save(mode: 'draft'|'publish'|'unpublish') {
   setSaving(true); setMessage('Guardando…');
-  const nextPublished = mode === 'publish' ? true : mode === 'unpublish' ? false : published;
   try {
    const draft = { draft_template:template, draft_content:content, draft_theme:theme, draft_logo_url:logo||null, draft_hero_image_url:hero||null, draft_gallery:gallery };
    const payload: WebsitePageUpsert = mode === 'draft'
-    ? { junta_id:juntaId, ...draft, published:nextPublished, updated_at:new Date().toISOString() }
+    ? { junta_id:juntaId, ...draft, published, updated_at:new Date().toISOString() }
     : mode === 'publish'
       ? { junta_id:juntaId, template, content, theme, logo_url:logo||null, hero_image_url:hero||null, gallery, published:true, draft_template:null, draft_content:null, draft_theme:null, draft_logo_url:null, draft_hero_image_url:null, draft_gallery:null, updated_at:new Date().toISOString() }
       : { junta_id:juntaId, ...draft, published:false, updated_at:new Date().toISOString() };
-   const { error } = await createClient().from('website_pages').upsert(payload, { onConflict:'junta_id' });
+   const { data, error } = await createClient().from('website_pages').upsert(payload, { onConflict:'junta_id', defaultToNull:false }).select('published').single();
    if (error) { setMessage(error.message || 'No fue posible guardar los cambios.'); return; }
-   setPublished(nextPublished); setSavedSnapshot(editorSnapshot(template, content, theme, logo, hero, gallery));
+   setPublished(Boolean(data?.published)); setSavedSnapshot(editorSnapshot(template, content, theme, logo, hero, gallery));
    if (mode === 'draft') { setMessage('Borrador guardado. La versión pública se mantiene.'); return; }
    if (mode === 'unpublish') { setMessage('Página despublicada.'); return; }
    const latestNews=content.newsItems[0];

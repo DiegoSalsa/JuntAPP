@@ -29,6 +29,26 @@ $$;
 REVOKE ALL ON FUNCTION public.treasury_summary(UUID, DATE, DATE, TEXT, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.treasury_summary(UUID, DATE, DATE, TEXT, TEXT) TO authenticated, service_role;
 
+CREATE OR REPLACE FUNCTION public.junta_due_household_counts(
+  p_junta_id UUID,
+  p_period DATE
+)
+RETURNS TABLE(total_households BIGINT, paid_households BIGINT)
+LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT
+    COUNT(DISTINCT h.id),
+    COUNT(DISTINCT d.household_id) FILTER (WHERE d.status = 'paid')
+  FROM public.households AS h
+  LEFT JOIN public.member_dues AS d
+    ON d.household_id = h.id
+   AND d.junta_id = p_junta_id
+   AND d.period = p_period
+  WHERE h.junta_id = p_junta_id
+    AND h.junta_id = public.current_junta_id();
+$$;
+REVOKE ALL ON FUNCTION public.junta_due_household_counts(UUID, DATE) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.junta_due_household_counts(UUID, DATE) TO authenticated, service_role;
+
 -- Global metrics are restricted to the server-side service role used by the
 -- superadmin panel. They intentionally never mix commercial subscription
 -- revenue with money held by a neighbourhood organization.

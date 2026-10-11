@@ -74,13 +74,12 @@ export default function OriginalDashboardShell({ profile, junta, trialEndsAt, ch
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` }, (payload) => {
         const notification = payload.new as Notification;
         setNotifications((current) => current.some((item) => item.id === notification.id) ? current : [notification, ...current].slice(0, 10));
-        if (!notification.read) setUnreadCount((count) => count + 1);
+        void loadNotifications();
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` }, (payload) => {
-        const before = payload.old as Partial<Notification>;
         const after = payload.new as Notification;
         setNotifications((current) => current.map((item) => item.id === after.id ? after : item));
-        if (typeof before.read === 'boolean' && before.read !== after.read) setUnreadCount((count) => Math.max(0, count + (after.read ? -1 : 1)));
+        void loadNotifications();
       })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };

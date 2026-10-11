@@ -78,17 +78,9 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
     admin.from('treasury_sync_runs').select('completed_at, imported_count').eq('junta_id', profile.junta_id).eq('status', 'completed').order('completed_at', { ascending: false }).limit(1).maybeSingle(),
     admin.from('treasury_sync_runs').select('id').eq('junta_id', profile.junta_id).in('status', ['pending', 'processing']).limit(1).maybeSingle(),
   ]) : [{ data: null }, { data: null }];
-  const { count: householdCount } = await supabase
-    .from('households')
-    .select('id', { count: 'exact', head: true })
-    .eq('junta_id', profile?.junta_id);
-  const { count: paidHouseholdCount } = await supabase
-    .from('member_dues')
-    .select('household_id', { count: 'exact', head: true })
-    .eq('junta_id', profile?.junta_id)
-    .eq('period', period)
-    .eq('status', 'paid')
-    .not('household_id', 'is', null);
+  const { data: dueCounts } = await supabase.rpc('junta_due_household_counts', { p_junta_id: profile?.junta_id, p_period: period });
+  const householdCount = Number(dueCounts?.[0]?.total_households ?? 0);
+  const paidHouseholdCount = Number(dueCounts?.[0]?.paid_households ?? 0);
 
   const { data: files } = await supabase.storage
     .from('transparency_reports')

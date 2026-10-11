@@ -23,9 +23,9 @@ export default async function InicioPage() {
   const { data: profile } = await supabase.from('profiles').select('*, juntas(name)').eq('id', user!.id).single();
   const juntaId = profile?.junta_id;
   const period = `${currentChileBillingPeriod()}-01`;
-  const [{ count: sociosCount }, { count: paidHouseholds }, { data: myDue }, { data: treasurySummary, error: treasuryError }, { data: announcements }, { data: activePoll }] = await Promise.all([
+  const [{ count: sociosCount }, { data: dueCounts }, { data: myDue }, { data: treasurySummary, error: treasuryError }, { data: announcements }, { data: activePoll }] = await Promise.all([
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('junta_id', juntaId),
-    supabase.from('member_dues').select('household_id', { count: 'exact', head: true }).eq('junta_id', juntaId).eq('period', period).eq('status', 'paid').not('household_id', 'is', null),
+    supabase.rpc('junta_due_household_counts', { p_junta_id: juntaId, p_period: `${period}-01` }),
     supabase.from('member_dues').select('household_id').eq('junta_id', juntaId).eq('household_id', profile?.household_id).eq('period', period).eq('status', 'paid').maybeSingle(),
     supabase.rpc('treasury_summary', { p_junta_id: juntaId, p_from_date: null, p_to_date: null, p_type: null, p_source: null }),
     supabase.from('announcements').select('*').eq('junta_id', juntaId).order('created_at', { ascending: false }).limit(3),
@@ -34,7 +34,7 @@ export default async function InicioPage() {
   if (treasuryError) console.error('[inicio] No fue posible obtener el resumen de caja', treasuryError);
   const treasuryRow = treasurySummary?.[0];
   const treasury = { income: Number(treasuryRow?.income ?? 0), expenses: Number(treasuryRow?.expenses ?? 0), fees: Number(treasuryRow?.fees ?? 0), balance: Number(treasuryRow?.balance ?? 0) };
-  const paid = paidHouseholds ?? 0;
+  const paid = Number(dueCounts?.[0]?.paid_households ?? 0);
   const myDuePaid = Boolean(myDue);
   const junta = Array.isArray(profile?.juntas) ? profile.juntas[0]?.name : profile?.juntas?.name;
   const month = new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric' }).format(new Date());

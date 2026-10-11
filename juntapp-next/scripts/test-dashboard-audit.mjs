@@ -18,8 +18,10 @@ function readFromRepo(...parts) {
 }
 
 assert.match(inicio, /rpc\('treasury_summary'/);
+assert.match(inicio, /rpc\('junta_due_household_counts'/);
 assert.doesNotMatch(inicio, /transactions.*limit\(1000\)/s);
 assert.match(tesoreria, /count: 'exact'/);
+assert.match(tesoreria, /rpc\('junta_due_household_counts'/);
 assert.match(tesoreria, /\.range\(transactionFrom/);
 assert.match(socios, /const from = \(page - 1\) \* pageSize/);
 assert.match(socios, /\.range\(from/);
@@ -31,8 +33,13 @@ assert.match(builder, /draft_content/);
 assert.match(builder, /draft_content:null/);
 assert.match(websiteDraftMigration, /ADD COLUMN IF NOT EXISTS draft_content JSONB/);
 assert.match(websiteDraftMigration, /ADD COLUMN IF NOT EXISTS draft_template TEXT/);
+assert.match(websiteDraftMigration, /DROP POLICY IF EXISTS "Published websites are public"/);
+assert.match(websiteDraftMigration, /REVOKE SELECT ON public\.website_pages FROM anon/);
+assert.match(builder, /\? \{ junta_id:juntaId, \.\.\.draft, published,/);
+assert.match(builder, /defaultToNull:false/);
 assert.match(builder, /Despublicar/);
 assert.match(shell, /count: 'exact'/);
 assert.match(shell, /setUnreadCount\(count \?\? 0\)/);
+assert.doesNotMatch(shell, /count \+ 1/);
 
 console.log('Dashboard audit contract tests passed.');
