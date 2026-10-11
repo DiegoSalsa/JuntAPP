@@ -114,6 +114,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
       }}
       totalHouseholds={households?.length ?? 0}
       paidHouseholds={new Set((paidHouseholdDues ?? []).map((due) => due.household_id)).size}
+      now={new Date().toISOString()}
     />
   );
 }

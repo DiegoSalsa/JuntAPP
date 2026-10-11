@@ -12,7 +12,7 @@ type AssignableBoardPosition = Exclude<BoardPosition, 'presidente'>;
 
 type BoardModalMode = 'assign' | 'change' | 'remove';
 type ManualAction = 'paid' | 'pending';
-type DueHistoryItem = { household_id: string; period: string; status: string; amount: number; payment_source?: string | null; mercadopago_payment_id?: string | null };
+type DueHistoryItem = { household_id: string; period: string; status: string; amount: number; payment_source?: string | null; mercadopago_payment_id?: string | null; payment_batch_id?: string | null };
 
 export default function SociosClient({ socios, currentProfile, junta, applications, householdCreatedAtById, dueHistory }: { socios: Profile[]; currentProfile: Profile; junta: Junta; applications: MembershipApplication[]; householdCreatedAtById: Record<string, string>; dueHistory: DueHistoryItem[] }) {
   const [search, setSearch] = useState('');
@@ -171,7 +171,7 @@ export default function SociosClient({ socios, currentProfile, junta, applicatio
       : currentDate;
     const firstGeneratedDate = incorporationDate > currentDate ? incorporationDate : currentDate;
     const lastGeneratedDate = new Date(currentDate);
-    lastGeneratedDate.setUTCMonth(lastGeneratedDate.getUTCMonth() + 12);
+    lastGeneratedDate.setUTCMonth(lastGeneratedDate.getUTCMonth() + 11);
     for (const generatedDate = new Date(firstGeneratedDate); generatedDate <= lastGeneratedDate; generatedDate.setUTCMonth(generatedDate.getUTCMonth() + 1)) {
       const period = `${generatedDate.getUTCFullYear()}-${String(generatedDate.getUTCMonth() + 1).padStart(2, '0')}-01`;
       if (!known.some((due) => due.period === period)) {
@@ -189,7 +189,7 @@ export default function SociosClient({ socios, currentProfile, junta, applicatio
     const current = `${currentChileBillingPeriod()}-01`;
     const initialPeriods = initialAction === 'paid'
       ? [initialOptions.find((due) => due.period === current)?.period ?? initialOptions[0]?.period].filter((period): period is string => Boolean(period))
-      : initialOptions.slice(0, 12).map((due) => due.period);
+      : selectCompleteManualBatches(initialOptions);
     setManualAction(initialAction);
     setManualPeriods(initialPeriods);
     setPaymentManagementError('');
@@ -203,12 +203,49 @@ export default function SociosClient({ socios, currentProfile, junta, applicatio
     const current = `${currentChileBillingPeriod()}-01`;
     setManualPeriods(action === 'paid'
       ? [options.find((due) => due.period === current)?.period ?? options[0]?.period].filter((period): period is string => Boolean(period))
-      : options.slice(0, 12).map((due) => due.period));
+      : selectCompleteManualBatches(options));
     setPaymentManagementError('');
   }
 
   function currentManualOptions() {
     return paymentSocio ? manualDueOptions(paymentSocio, manualAction) : [];
+  }
+
+  function manualReverseGroups(options = currentManualOptions()) {
+    const groups = new Map<string, DueHistoryItem[]>();
+    for (const due of options) {
+      const key = due.payment_batch_id ?? `single:${due.period}`;
+      groups.set(key, [...(groups.get(key) ?? []), due].sort((left, right) => left.period.localeCompare(right.period)));
+    }
+    return [...groups.entries()].map(([key, periods]) => ({ key, periods }));
+  }
+
+  function selectCompleteManualBatches(options: DueHistoryItem[]) {
+    const selected: string[] = [];
+    for (const group of manualReverseGroups(options)) {
+      if (selected.length + group.periods.length > 12) break;
+      selected.push(...group.periods.map((due) => due.period));
+    }
+    return selected.sort();
+  }
+
+  function toggleManualPeriod(due: DueHistoryItem, checked: boolean) {
+    if (manualAction !== 'pending' || !due.payment_batch_id) {
+      setManualPeriods((current) => checked
+        ? current.length >= 12 ? current : [...new Set([...current, due.period])].sort()
+        : current.filter((period) => period !== due.period));
+      return;
+    }
+    const group = manualReverseGroups().find(({ key }) => key === due.payment_batch_id)?.periods ?? [due];
+    setManualPeriods((current) => {
+      const groupPeriods = group.map((item) => item.period);
+      if (checked) {
+        if (current.length + groupPeriods.filter((period) => !current.includes(period)).length > 12) return current;
+        return [...new Set([...current, ...groupPeriods])].sort();
+      }
+      const periods = new Set(groupPeriods);
+      return current.filter((period) => !periods.has(period));
+    });
   }
 
   /*
@@ -219,7 +256,8 @@ export default function SociosClient({ socios, currentProfile, junta, applicatio
   function renderManualPaymentModal() {
     if (!paymentSocio) return null;
     const options = currentManualOptions();
-    return <div className="modal active" role="dialog" aria-modal="true" onMouseDown={(event) => event.target === event.currentTarget && setPaymentSocio(null)}><div className="modal-dialog"><div className="modal-content"><div className="modal-header"><h3 className="modal-title">Gestionar cuotas de {paymentSocio.name}</h3><button className="modal-close" onClick={() => setPaymentSocio(null)} aria-label="Cerrar">×</button></div><div className="modal-body"><div className="view-actions mb-16"><button type="button" className={`btn btn-sm ${manualAction === 'paid' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => selectManualAction('paid')}>Registrar pago manual</button><button type="button" className={`btn btn-sm ${manualAction === 'pending' ? 'btn-primary' : 'btn-secondary'}`} disabled={!manualDueOptions(paymentSocio, 'pending').length} onClick={() => selectManualAction('pending')}>Revertir pago manual</button></div><p className="card-subtitle">{manualAction === 'paid' ? 'Selecciona períodos pendientes o rechazados para registrar el pago fuera de Mercado Pago.' : 'Solo aparecen períodos pagados manualmente. Los pagos de Mercado Pago requieren su reembolso en el proveedor.'}</p><div className="due-period-grid">{options.map((due) => <label className="due-period-option" key={due.period}><input type="checkbox" checked={manualPeriods.includes(due.period)} onChange={(event) => setManualPeriods((current) => event.target.checked ? current.length >= 12 ? current : [...current, due.period].sort() : current.filter((period) => period !== due.period))} /><span>{due.period.slice(0, 7)} · {new Intl.NumberFormat('es-CL').format(due.amount)} CLP</span></label>)}</div>{manualAction === 'paid' ? <><div className="form-group"><label className="form-label" htmlFor="manual-payment-method">Medio de pago recibido</label><select id="manual-payment-method" className="form-input" value={manualPaymentMethod} onChange={(event) => setManualPaymentMethod(event.target.value as 'cash' | 'transfer' | 'other')}><option value="cash">Efectivo</option><option value="transfer">Transferencia bancaria</option><option value="other">Otro medio manual</option></select></div><button className="btn btn-primary btn-block" disabled={paymentSaving || !manualPeriods.length} onClick={() => void updateManualPayment('paid')}>{paymentSaving ? 'Registrando…' : `Registrar ${manualPeriods.length} cuota${manualPeriods.length === 1 ? '' : 's'} pagada${manualPeriods.length === 1 ? '' : 's'}`}</button></> : <button className="btn btn-secondary danger-action btn-block" disabled={paymentSaving || !manualPeriods.length} onClick={() => void updateManualPayment('pending')}>{paymentSaving ? 'Revirtiendo…' : `Revertir ${manualPeriods.length} cuota${manualPeriods.length === 1 ? '' : 's'} manual${manualPeriods.length === 1 ? '' : 'es'}`}</button>}{!options.length && <p className="empty-state">No hay períodos disponibles para esta operación.</p>}{paymentManagementError && <p className="form-error">{paymentManagementError}</p>}</div></div></div></div>;
+    const reverseGroups = manualAction === 'pending' ? manualReverseGroups(options) : [];
+    return <div className="modal active" role="dialog" aria-modal="true" onMouseDown={(event) => event.target === event.currentTarget && setPaymentSocio(null)}><div className="modal-dialog"><div className="modal-content"><div className="modal-header"><h3 className="modal-title">Gestionar cuotas de {paymentSocio.name}</h3><button className="modal-close" onClick={() => setPaymentSocio(null)} aria-label="Cerrar">×</button></div><div className="modal-body"><div className="view-actions mb-16"><button type="button" className={`btn btn-sm ${manualAction === 'paid' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => selectManualAction('paid')}>Registrar pago manual</button><button type="button" className={`btn btn-sm ${manualAction === 'pending' ? 'btn-primary' : 'btn-secondary'}`} disabled={!manualDueOptions(paymentSocio, 'pending').length} onClick={() => selectManualAction('pending')}>Revertir pago manual</button></div><p className="card-subtitle">{manualAction === 'paid' ? 'Selecciona períodos pendientes o rechazados para registrar el pago fuera de Mercado Pago.' : 'Selecciona un lote completo. Los pagos de Mercado Pago quedan fuera de esta reversa.'}</p>{manualAction === 'pending' && <p className="form-help">Cada bloque corresponde a un pago manual completo; no puedes revertir solo una parte.</p>}<div className="due-period-grid">{manualAction === 'pending' ? reverseGroups.map((group) => <label className="due-period-option due-period-batch-option" key={group.key}><input type="checkbox" checked={group.periods.every((due) => manualPeriods.includes(due.period))} onChange={(event) => toggleManualPeriod(group.periods[0], event.target.checked)} /><span><strong>{group.periods.length} cuotas manuales</strong><small>{group.periods.map((due) => due.period.slice(0, 7)).join(', ')} · {new Intl.NumberFormat('es-CL').format(group.periods.reduce((sum, due) => sum + due.amount, 0))} CLP</small></span></label>) : options.map((due) => <label className="due-period-option" key={due.period}><input type="checkbox" checked={manualPeriods.includes(due.period)} onChange={(event) => toggleManualPeriod(due, event.target.checked)} /><span>{due.period.slice(0, 7)} · {new Intl.NumberFormat('es-CL').format(due.amount)} CLP</span></label>)}</div>{manualAction === 'paid' ? <><div className="form-group"><label className="form-label" htmlFor="manual-payment-method">Medio de pago recibido</label><select id="manual-payment-method" className="form-input" value={manualPaymentMethod} onChange={(event) => setManualPaymentMethod(event.target.value as 'cash' | 'transfer' | 'other')}><option value="cash">Efectivo</option><option value="transfer">Transferencia bancaria</option><option value="other">Otro medio manual</option></select></div><button className="btn btn-primary btn-block" disabled={paymentSaving || !manualPeriods.length} onClick={() => void updateManualPayment('paid')}>{paymentSaving ? 'Registrando…' : `Registrar ${manualPeriods.length} cuota${manualPeriods.length === 1 ? '' : 's'} pagada${manualPeriods.length === 1 ? '' : 's'}`}</button></> : <button className="btn btn-secondary danger-action btn-block" disabled={paymentSaving || !manualPeriods.length} onClick={() => void updateManualPayment('pending')}>{paymentSaving ? 'Revirtiendo…' : `Revertir ${manualPeriods.length} cuota${manualPeriods.length === 1 ? '' : 's'} manual${manualPeriods.length === 1 ? '' : 'es'}`}</button>}{!options.length && <p className="empty-state">No hay períodos disponibles para esta operación.</p>}{paymentManagementError && <p className="form-error">{paymentManagementError}</p>}</div></div></div></div>;
   }
 
   return (
