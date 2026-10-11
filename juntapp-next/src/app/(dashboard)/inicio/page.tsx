@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { Metadata } from 'next';
 import InicioAlerts from '@/components/dashboard/inicio/InicioAlerts';
-import { calculateTreasuryStats } from '@/lib/treasury';
 
 export const metadata: Metadata = { title: 'Panel de Inicio — JuntAPP' };
 
@@ -24,16 +23,19 @@ export default async function InicioPage() {
   const { data: profile } = await supabase.from('profiles').select('*, juntas(name)').eq('id', user!.id).single();
   const juntaId = profile?.junta_id;
   const period = `${currentChileBillingPeriod()}-01`;
-  const [{ count: sociosCount }, { data: paidDues }, { data: transactions }, { data: announcements }, { data: activePoll }] = await Promise.all([
+  const [{ count: sociosCount }, { count: paidHouseholds }, { data: myDue }, { data: treasurySummary, error: treasuryError }, { data: announcements }, { data: activePoll }] = await Promise.all([
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('junta_id', juntaId),
-    supabase.from('member_dues').select('household_id').eq('junta_id', juntaId).eq('period', period).eq('status', 'paid').not('household_id', 'is', null),
-    supabase.from('transactions').select('type, amount, accounting_kind, gross_amount, fee_amount, net_amount').eq('junta_id', juntaId).limit(1000),
+    supabase.from('member_dues').select('household_id', { count: 'exact', head: true }).eq('junta_id', juntaId).eq('period', period).eq('status', 'paid').not('household_id', 'is', null),
+    supabase.from('member_dues').select('household_id').eq('junta_id', juntaId).eq('household_id', profile?.household_id).eq('period', period).eq('status', 'paid').maybeSingle(),
+    supabase.rpc('treasury_summary', { p_junta_id: juntaId, p_from_date: null, p_to_date: null, p_type: null, p_source: null }),
     supabase.from('announcements').select('*').eq('junta_id', juntaId).order('created_at', { ascending: false }).limit(3),
     supabase.from('polls').select('title').eq('junta_id', juntaId).eq('active', true).maybeSingle(),
   ]);
-  const treasury = calculateTreasuryStats(transactions ?? []);
-  const paid = new Set((paidDues ?? []).map((due) => due.household_id)).size;
-  const myDuePaid = (paidDues ?? []).some((due) => due.household_id === profile?.household_id);
+  if (treasuryError) console.error('[inicio] No fue posible obtener el resumen de caja', treasuryError);
+  const treasuryRow = treasurySummary?.[0];
+  const treasury = { income: Number(treasuryRow?.income ?? 0), expenses: Number(treasuryRow?.expenses ?? 0), fees: Number(treasuryRow?.fees ?? 0), balance: Number(treasuryRow?.balance ?? 0) };
+  const paid = paidHouseholds ?? 0;
+  const myDuePaid = Boolean(myDue);
   const junta = Array.isArray(profile?.juntas) ? profile.juntas[0]?.name : profile?.juntas?.name;
   const month = new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric' }).format(new Date());
   const urgent = announcements?.find((item) => item.category === 'urgente');
