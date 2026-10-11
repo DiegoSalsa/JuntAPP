@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
+import * as visualData from './ux-ui-v2-data.mjs';
 
 export const billingMonth = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit' }).format(new Date());
 export function period(offset = 0) {
@@ -30,7 +31,8 @@ const expiredAt = new Date(Date.now() - 60_000).toISOString();
 const dues = [-5, -4, -3, -1].map((offset) => ({ id: `due-${offset}`, junta_id: juntaId, household_id: householdId, period: period(offset), amount: 5000, status: offset === -1 ? 'preference_created' : 'paid', payment_source: offset === -5 ? 'mercadopago' : offset === -1 ? null : 'manual', mercadopago_payment_id: offset === -5 ? 'old-mp-payment' : null, mercadopago_preference_id: offset === -1 ? 'old-preference' : null, checkout_expires_at: offset === -1 ? expiredAt : null, payment_batch_id: offset === -1 ? activeId : offset === -5 ? null : manualId }));
 const tokenFor = (profile) => `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSON.stringify({ sub: profile.id, email: profile.email, exp: 2000000000, role: 'authenticated' })).toString('base64url')}.mock`;
 
-export async function startFixture({ serve = false } = {}) {
+export async function startFixture({ serve = false, visual = false } = {}) {
+  if (visual) junta.subscription_plan = 'juntapp_web';
   const mock = createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', req.headers.origin ?? '*');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -58,6 +60,14 @@ export async function startFixture({ serve = false } = {}) {
       const rpc = url.pathname.split('/').pop();
       let raw = ''; for await (const chunk of req) raw += chunk;
       const input = raw ? JSON.parse(raw) : {};
+      if (visual && rpc === 'board_contacts') { res.end(JSON.stringify(profiles.filter(x => x.role === 'dirigente'))); return; }
+      if (visual && rpc === 'poll_overview') { res.end(JSON.stringify(visualData.polls[0].options.map((x, i) => ({ poll_id: 'poll-fixture', option_id: x.id, votes: [18, 12, 7][i], has_voted: false })))); return; }
+      if (visual && rpc === 'superadmin_member_counts') { res.end(JSON.stringify([{ junta_id: juntaId, members: 2, leaders: 1 }])); return; }
+      if (visual && rpc === 'superadmin_due_summary') { res.end(JSON.stringify([{ collected: 180000 }])); return; }
+      if (visual && rpc === 'superadmin_treasury_summary') { res.end(JSON.stringify([visualData.summary])); return; }
+      if (visual && rpc === 'treasury_summary') { res.end(JSON.stringify([visualData.summary])); return; }
+      if (visual && rpc === 'treasury_monthly_summary') { res.end(JSON.stringify(visualData.monthly)); return; }
+      if (visual && rpc === 'treasury_expense_breakdown') { res.end(JSON.stringify([{ category: 'otros', amount: 42000 }, { category: 'comisiones', amount: 6500 }])); return; }
       if (rpc === 'junta_roster_page') {
         const search = String(input.p_search ?? '').toLowerCase();
         const due = String(input.p_due ?? '');
@@ -89,10 +99,16 @@ export async function startFixture({ serve = false } = {}) {
       if (!current && bearer !== 'mock-service-role') { res.writeHead(401).end('{"message":"Invalid JWT"}'); return; }
       const table = url.pathname.split('/').pop();
       let rows = table === 'profiles' ? profiles : table === 'households' ? households : table === 'member_dues' ? dues : table === 'due_payment_batches' ? batches : table === 'mercadopago_junta_accounts' ? [{ mercadopago_user_id: '12345', connected_at: period() }] : table === 'board_contacts' ? [profiles[0]] : [];
+      if (visual) {
+        const tables = { announcements: visualData.announcements, polls: visualData.polls, poll_proposals: visualData.proposals, transactions: visualData.transactions, website_pages: [visualData.website], juntas: [{ ...junta, region: 'Región de prueba', comuna: 'Comuna de prueba', created_at: '2026-10-01T12:00:00Z' }] };
+        if (tables[table]) rows = tables[table];
+      }
       for (const [key, value] of url.searchParams) {
         if (value.startsWith('eq.')) rows = rows.filter((row) => String(row[key]) === value.slice(3));
       }
-      if (req.method === 'HEAD') { res.setHeader('Content-Range', `0-0/${rows.length}`); res.end(); return; }
+      res.setHeader('Content-Range', `0-${Math.max(0, rows.length - 1)}/${rows.length}`);
+      if (url.searchParams.has('limit')) rows = rows.slice(0, Number(url.searchParams.get('limit')));
+      if (req.method === 'HEAD') { res.end(); return; }
       res.end(JSON.stringify(req.headers.accept?.includes('application/vnd.pgrst.object+json') ? rows[0] ?? null : rows)); return;
     }
     res.writeHead(404).end('{"message":"Not found"}');
@@ -100,7 +116,7 @@ export async function startFixture({ serve = false } = {}) {
   mock.listen(serve ? 42011 : 0, '127.0.0.1'); await once(mock, 'listening');
   const appPort = serve ? 42012 : 43000 + Math.floor(Math.random() * 10000);
   const appUrl = `http://127.0.0.1:${appPort}`;
-  const app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '-H', '127.0.0.1', '-p', String(appPort)], { env: { ...process.env, NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${mock.address().port}`, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'mock-anon-key', SUPABASE_SERVICE_ROLE_KEY: 'mock-service-role', NEXT_TELEMETRY_DISABLED: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '-H', '127.0.0.1', '-p', String(appPort)], { env: { ...process.env, NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${mock.address().port}`, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'mock-anon-key', SUPABASE_SERVICE_ROLE_KEY: 'mock-service-role', SUPERADMIN_SESSION_SECRET: visualData.sessionSecret, NEXT_TELEMETRY_DISABLED: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = ''; app.stdout.on('data', (chunk) => { output += chunk; }); app.stderr.on('data', (chunk) => { output += chunk; });
   for (let attempt = 0; attempt < 90; attempt++) {
     try { if ((await fetch(`${appUrl}/login`)).ok) return { appUrl, stop: async () => { app.kill(); await once(app, 'close'); await new Promise((resolve) => mock.close(resolve)); } }; } catch { /* starting */ }
