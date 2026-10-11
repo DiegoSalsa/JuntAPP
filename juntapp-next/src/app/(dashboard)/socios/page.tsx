@@ -39,6 +39,11 @@ export default async function SociosPage() {
     .select('household_id, period, status, amount, payment_source, mercadopago_payment_id')
     .eq('junta_id', profile?.junta_id)
     .order('period', { ascending: false });
+  const { data: households } = await supabase
+    .from('households')
+    .select('id, created_at')
+    .eq('junta_id', profile?.junta_id);
+  const householdCreatedAtById = Object.fromEntries((households ?? []).map((household) => [household.id, household.created_at]));
   const paidHouseholdIds = new Set((paidDues ?? []).map((due) => due.household_id));
   const sociosWithCurrentStatus = roster.map((socio) => ({
     ...socio,
@@ -62,6 +67,7 @@ export default async function SociosPage() {
       currentProfile={currentProfile!}
       junta={(Array.isArray(profile?.juntas) ? profile.juntas[0] : profile?.juntas)!}
       applications={applications ?? []}
+      householdCreatedAtById={householdCreatedAtById}
       dueHistory={(dueHistory ?? []).map((due) => ({ household_id: due.household_id, period: due.period, status: due.status, amount: Number(due.amount), payment_source: due.payment_source, mercadopago_payment_id: due.mercadopago_payment_id }))}
     />
   );

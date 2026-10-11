@@ -14,7 +14,7 @@ type BoardModalMode = 'assign' | 'change' | 'remove';
 type ManualAction = 'paid' | 'pending';
 type DueHistoryItem = { household_id: string; period: string; status: string; amount: number; payment_source?: string | null; mercadopago_payment_id?: string | null };
 
-export default function SociosClient({ socios, currentProfile, junta, applications, dueHistory }: { socios: Profile[]; currentProfile: Profile; junta: Junta; applications: MembershipApplication[]; dueHistory: DueHistoryItem[] }) {
+export default function SociosClient({ socios, currentProfile, junta, applications, householdCreatedAtById, dueHistory }: { socios: Profile[]; currentProfile: Profile; junta: Junta; applications: MembershipApplication[]; householdCreatedAtById: Record<string, string>; dueHistory: DueHistoryItem[] }) {
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -154,17 +154,28 @@ export default function SociosClient({ socios, currentProfile, junta, applicatio
 
   function manualDueOptions(socio: Profile, action: ManualAction) {
     const current = `${currentChileBillingPeriod()}-01`;
-    const options = dueHistory
+    const known = dueHistory
       .filter((due) => due.household_id === socio.household_id)
       .filter((due, index, all) => all.findIndex((candidate) => candidate.period === due.period) === index)
-      .map((due) => ({ ...due, period: due.period.slice(0, 10) }))
-      .filter((due) => action === 'paid'
-        ? ['pending', 'rejected', 'refunded'].includes(due.status)
-        : due.status === 'paid' && due.payment_source === 'manual');
-    if (action === 'paid' && !options.some((due) => due.period === current)) {
-      const currentDue = dueHistory.find((due) => due.household_id === socio.household_id && due.period.slice(0, 10) === current);
-      if (!currentDue || currentDue.status !== 'paid') {
-        options.push({ household_id: socio.household_id, period: current, status: 'pending', amount: Number(junta.monthly_due_amount ?? 0), payment_source: null, mercadopago_payment_id: null });
+      .map((due) => ({ ...due, period: due.period.slice(0, 10) }));
+    if (action === 'pending') {
+      return known
+        .filter((due) => due.status === 'paid' && due.payment_source === 'manual')
+        .sort((left, right) => left.period.localeCompare(right.period));
+    }
+
+    const options = known.filter((due) => ['pending', 'rejected', 'refunded'].includes(due.status));
+    const currentDate = new Date(`${current}T00:00:00Z`);
+    const incorporationDate = householdCreatedAtById[socio.household_id]
+      ? new Date(`${householdCreatedAtById[socio.household_id].slice(0, 7)}-01T00:00:00Z`)
+      : currentDate;
+    const firstGeneratedDate = incorporationDate > currentDate ? incorporationDate : currentDate;
+    const lastGeneratedDate = new Date(currentDate);
+    lastGeneratedDate.setUTCMonth(lastGeneratedDate.getUTCMonth() + 12);
+    for (const generatedDate = new Date(firstGeneratedDate); generatedDate <= lastGeneratedDate; generatedDate.setUTCMonth(generatedDate.getUTCMonth() + 1)) {
+      const period = `${generatedDate.getUTCFullYear()}-${String(generatedDate.getUTCMonth() + 1).padStart(2, '0')}-01`;
+      if (!known.some((due) => due.period === period)) {
+        options.push({ household_id: socio.household_id, period, status: 'pending', amount: Number(junta.monthly_due_amount ?? 0), payment_source: null, mercadopago_payment_id: null });
       }
     }
     return options.sort((left, right) => left.period.localeCompare(right.period));
@@ -175,8 +186,12 @@ export default function SociosClient({ socios, currentProfile, junta, applicatio
     const manualReverseOptions = manualDueOptions(socio, 'pending');
     const initialAction: ManualAction = manualPaidOptions.length ? 'paid' : manualReverseOptions.length ? 'pending' : 'paid';
     const initialOptions = initialAction === 'paid' ? manualPaidOptions : manualReverseOptions;
+    const current = `${currentChileBillingPeriod()}-01`;
+    const initialPeriods = initialAction === 'paid'
+      ? [initialOptions.find((due) => due.period === current)?.period ?? initialOptions[0]?.period].filter((period): period is string => Boolean(period))
+      : initialOptions.slice(0, 12).map((due) => due.period);
     setManualAction(initialAction);
-    setManualPeriods(initialOptions.slice(0, 12).map((due) => due.period));
+    setManualPeriods(initialPeriods);
     setPaymentManagementError('');
     setPaymentSocio(socio);
   }
@@ -184,7 +199,11 @@ export default function SociosClient({ socios, currentProfile, junta, applicatio
   function selectManualAction(action: ManualAction) {
     if (!paymentSocio) return;
     setManualAction(action);
-    setManualPeriods(manualDueOptions(paymentSocio, action).slice(0, 12).map((due) => due.period));
+    const options = manualDueOptions(paymentSocio, action);
+    const current = `${currentChileBillingPeriod()}-01`;
+    setManualPeriods(action === 'paid'
+      ? [options.find((due) => due.period === current)?.period ?? options[0]?.period].filter((period): period is string => Boolean(period))
+      : options.slice(0, 12).map((due) => due.period));
     setPaymentManagementError('');
   }
 

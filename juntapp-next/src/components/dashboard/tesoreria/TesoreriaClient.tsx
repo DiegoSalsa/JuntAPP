@@ -65,7 +65,7 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
   const dueByPeriod = useMemo(() => new Map(dueHistory.map((due) => [due.period.slice(0, 10), due])), [dueHistory]);
   const currentPeriodDate = useMemo(() => new Date(`${currentChileBillingPeriod()}-01T00:00:00Z`), []);
   const earliestSelectableMs = useMemo(() => {
-    const incorporation = householdCreatedAt ? new Date(`${householdCreatedAt.slice(0, 10)}T00:00:00Z`) : currentPeriodDate;
+    const incorporation = householdCreatedAt ? new Date(`${householdCreatedAt.slice(0, 7)}-01T00:00:00Z`) : currentPeriodDate;
     return dueHistory.reduce((min, due) => Math.min(min, new Date(`${due.period.slice(0, 10)}T00:00:00Z`).getTime()), incorporation.getTime());
   }, [currentPeriodDate, dueHistory, householdCreatedAt]);
   const maxSelectableMs = useMemo(() => {
