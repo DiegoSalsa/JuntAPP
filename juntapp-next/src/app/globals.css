@@ -785,3 +785,13 @@ body .plans-page .plans-hero p{color:#fff!important}body .plans-page .plan-card.
 .registration-addon-upcoming{color:#64748b;cursor:not-allowed}.registration-addon-upcoming strong{float:right;color:#087843;text-transform:uppercase;letter-spacing:.06em}.registration-addon-upcoming input{cursor:not-allowed}
 .style-swiss .whatsapp-addon-upcoming,.original-public-root.style-swiss .whatsapp-addon-upcoming,.style-swiss .whatsapp-addon-upcoming input[type="checkbox"],.original-public-root.style-swiss .whatsapp-addon-upcoming input[type="checkbox"]{cursor:not-allowed!important}
 .style-swiss .whatsapp-addon-upcoming b,.original-public-root.style-swiss .whatsapp-addon-upcoming b{background:#168b55!important;color:#fff!important;padding:7px 11px!important;border-radius:3px!important;letter-spacing:.06em!important}
+
+/* Accessibility and scalable dashboard controls */
+:where(button,a,input,select,textarea):focus-visible { outline: 3px solid #f97316; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; } }
+.treasury-transaction-filters,.roster-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin: 16px 0; }
+.treasury-transaction-filters .form-input,.roster-filters .form-input { min-width: 150px; flex: 1 1 150px; }
+.roster-filters .search-input-wrapper { min-width: min(100%, 280px); flex: 2 1 280px; }
+.transaction-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.transaction-pagination span { color: #536477; font-size: 13px; font-weight: 750; }
+@media (max-width: 700px) { .treasury-transaction-filters,.roster-filters { align-items: stretch; } .treasury-transaction-filters .form-input,.roster-filters .form-input,.treasury-transaction-filters button,.roster-filters button { width: 100%; flex-basis: 100%; } .transaction-pagination > * { flex: 1 1 100%; text-align: center; } }
