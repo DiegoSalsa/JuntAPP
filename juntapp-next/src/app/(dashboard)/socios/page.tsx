@@ -22,7 +22,7 @@ export default async function SociosPage({ searchParams }: { searchParams: Promi
   const page = Math.max(1, Number(params.page ?? '1') || 1);
   const pageSize = 50;
   const from = (page - 1) * pageSize;
-  const search = String(params.q ?? '').trim().slice(0, 80);
+  const search = String(params.q ?? '').replace(/[%,_(),]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
   const role = params.role === 'dirigente' || params.role === 'vecino' ? params.role : '';
   const position = String(params.position ?? '').trim().slice(0, 40);
   const due = params.due === 'al_dia' || params.due === 'pendiente' ? params.due : '';
