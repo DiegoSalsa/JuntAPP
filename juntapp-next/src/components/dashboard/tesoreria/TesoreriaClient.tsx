@@ -12,7 +12,7 @@ import ExpenseChart from './ExpenseChart';
 
 type PaymentBatchSummary = { id: string; total_amount: number | string; status: string; payment_source: string | null; mercadopago_payment_id: string | null; created_at: string; confirmed_at: string | null; due_payment_batch_items?: { period: string; amount: number | string }[] };
 
-export default function TesoreriaClient({ transactions, documents, currentProfile, junta, currentDue, dueHistory, paymentBatches, paymentReturn, connectionReturn, mercadoPagoConnection, treasurySyncStatus, totalHouseholds, paidHouseholds }: { transactions: Transaction[]; documents: TreasuryDocument[]; currentProfile: Profile; junta: Junta; currentDue: MemberDue | null; dueHistory: MemberDue[]; paymentBatches: PaymentBatchSummary[]; paymentReturn: string | null; connectionReturn: string | null; mercadoPagoConnection: MercadoPagoConnectionSummary; treasurySyncStatus: TreasurySyncStatus; totalHouseholds: number; paidHouseholds: number }) {
+export default function TesoreriaClient({ transactions, documents, currentProfile, junta, currentDue, dueHistory, householdCreatedAt, paymentBatches, paymentReturn, connectionReturn, mercadoPagoConnection, treasurySyncStatus, totalHouseholds, paidHouseholds }: { transactions: Transaction[]; documents: TreasuryDocument[]; currentProfile: Profile; junta: Junta; currentDue: MemberDue | null; dueHistory: MemberDue[]; householdCreatedAt: string | null; paymentBatches: PaymentBatchSummary[]; paymentReturn: string | null; connectionReturn: string | null; mercadoPagoConnection: MercadoPagoConnectionSummary; treasurySyncStatus: TreasurySyncStatus; totalHouseholds: number; paidHouseholds: number }) {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [documentLoading, setDocumentLoading] = useState(false);
@@ -40,9 +40,10 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
   const monthlyStats = useMemo(() => calculateTreasuryStats(currentMonthTransactions), [currentMonthTransactions]);
   const yearOptions = useMemo(() => {
     const currentYear = Number(currentChileBillingPeriod().slice(0, 4));
-    const earliestYear = dueHistory.length ? Math.min(...dueHistory.map((due) => Number(due.period.slice(0, 4)))) : currentYear;
+    const incorporationYear = householdCreatedAt ? Number(householdCreatedAt.slice(0, 4)) : currentYear;
+    const earliestYear = dueHistory.length ? Math.min(incorporationYear, ...dueHistory.map((due) => Number(due.period.slice(0, 4)))) : incorporationYear;
     return Array.from({ length: currentYear + 2 - earliestYear }, (_, index) => earliestYear + index);
-  }, [dueHistory]);
+  }, [dueHistory, householdCreatedAt]);
 
   async function handleAddTransaction(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setLoading(true); const form = new FormData(event.currentTarget);
@@ -61,25 +62,34 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
 
   async function deleteDocument(path: string) { if (!confirm('Â¿Deseas eliminar este documento?')) return; const { error } = await createClient().storage.from('transparency_reports').remove([path]); if (error) setDocumentError(error.message); else router.refresh(); }
 
+  const dueByPeriod = useMemo(() => new Map(dueHistory.map((due) => [due.period.slice(0, 10), due])), [dueHistory]);
+  const currentPeriodDate = useMemo(() => new Date(`${currentChileBillingPeriod()}-01T00:00:00Z`), []);
+  const earliestSelectableMs = useMemo(() => {
+    const incorporation = householdCreatedAt ? new Date(`${householdCreatedAt.slice(0, 10)}T00:00:00Z`) : currentPeriodDate;
+    return dueHistory.reduce((min, due) => Math.min(min, new Date(`${due.period.slice(0, 10)}T00:00:00Z`).getTime()), incorporation.getTime());
+  }, [currentPeriodDate, dueHistory, householdCreatedAt]);
+  const maxSelectableMs = useMemo(() => {
+    const maximum = new Date(currentPeriodDate);
+    maximum.setUTCMonth(maximum.getUTCMonth() + 12);
+    return maximum.getTime();
+  }, [currentPeriodDate]);
+  const isSelectablePeriod = (period: string) => {
+    const dateTime = new Date(`${period}T00:00:00Z`).getTime();
+    return dateTime <= maxSelectableMs && (dueByPeriod.has(period) || dateTime >= earliestSelectableMs);
+  };
   const calendarPeriods = useMemo(() => {
-    const current = new Date(`${currentChileBillingPeriod()}-01T00:00:00Z`);
-    const known = new Map(dueHistory.map((due) => [due.period.slice(0, 10), due]));
-    const earliestKnown = dueHistory.reduce((min, due) => Math.min(min, new Date(due.period.slice(0, 10)).getTime()), current.getTime());
-    const maxSelectable = new Date(current);
-    maxSelectable.setUTCMonth(maxSelectable.getUTCMonth() + 12);
     return Array.from({ length: 12 }, (_, index) => {
       const date = new Date(Date.UTC(calendarYear, index, 1));
       const period = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-01`;
       const dateTime = date.getTime();
-      const selectable = dateTime <= maxSelectable.getTime()
-        && (Boolean(known.get(period)) || dateTime >= earliestKnown);
-      return { period, due: known.get(period) ?? null, selectable };
+      const selectable = dateTime <= maxSelectableMs
+        && (Boolean(dueByPeriod.get(period)) || dateTime >= earliestSelectableMs);
+      return { period, due: dueByPeriod.get(period) ?? null, selectable };
     });
-  }, [calendarYear, dueHistory]);
+  }, [calendarYear, dueByPeriod, earliestSelectableMs, maxSelectableMs]);
   const payableSelectedPeriods = selectedPeriods.filter((period) => {
-    const entry = calendarPeriods.find((candidate) => candidate.period === period);
-    const due = entry?.due;
-    return Boolean(entry?.selectable) && (!due || ['pending', 'rejected', 'refunded'].includes(due.status));
+    const due = dueByPeriod.get(period);
+    return isSelectablePeriod(period) && (!due || ['pending', 'rejected', 'refunded'].includes(due.status));
   });
   async function startDuePayment() {
     setPaymentLoading(true); setPaymentError('');
@@ -118,7 +128,7 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
           const selected = selectedPeriods.includes(period);
           const label = new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(period));
           return <label key={period} className={`due-period-card ${paid ? 'paid' : inProgress ? 'pending' : selected ? 'selected' : !selectable ? 'disabled' : ''}`}>
-            <input type="checkbox" checked={selected} disabled={!selectable || paid || inProgress} onChange={() => setSelectedPeriods((current) => selected ? current.filter((value) => value !== period) : [...current, period].sort())} />
+            <input type="checkbox" checked={selected} disabled={!selectable || paid || inProgress} onChange={() => setSelectedPeriods((current) => selected ? current.filter((value) => value !== period) : current.length >= 12 ? current : [...current, period].sort())} />
             <span className="due-period-label">{label.charAt(0).toUpperCase() + label.slice(1)}</span>
             {!selectable && <span className="due-period-status">Sin registro</span>}
             <strong>{formatCurrency(Number(due?.amount ?? junta.monthly_due_amount))}</strong>
@@ -126,7 +136,7 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
           </label>;
         })}
       </div>
-      <div className="due-payment-summary"><span>Total seleccionado: <strong>{formatCurrency(payableSelectedPeriods.reduce((sum, period) => sum + Number(calendarPeriods.find((entry) => entry.period === period)?.due?.amount ?? junta.monthly_due_amount), 0))}</strong></span><button className="btn btn-primary btn-lg" disabled={!payableSelectedPeriods.length || paymentLoading || !mercadoPagoConnection.connected} onClick={() => void startDuePayment()}>{paymentLoading ? 'Abriendo Mercado Pagoâ€¦' : payableSelectedPeriods.length > 1 ? `Pagar ${payableSelectedPeriods.length} meses` : 'Pagar perÃ­odo seleccionado'}</button></div>
+      <div className="due-payment-summary"><span>Total seleccionado: <strong>{formatCurrency(payableSelectedPeriods.reduce((sum, period) => sum + Number(dueByPeriod.get(period)?.amount ?? junta.monthly_due_amount), 0))}</strong></span><button className="btn btn-primary btn-lg" disabled={!payableSelectedPeriods.length || paymentLoading || !mercadoPagoConnection.connected} onClick={() => void startDuePayment()}>{paymentLoading ? 'Abriendo Mercado Pagoâ€¦' : payableSelectedPeriods.length > 1 ? `Pagar ${payableSelectedPeriods.length} meses` : 'Pagar perÃ­odo seleccionado'}</button></div>
       {!mercadoPagoConnection.connected && <p className="form-help">La directiva debe conectar Mercado Pago antes de iniciar un cobro.</p>}
       {paymentError && <p className="form-error">{paymentError}</p>}
     </div>

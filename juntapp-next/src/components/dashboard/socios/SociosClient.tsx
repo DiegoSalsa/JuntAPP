@@ -11,9 +11,10 @@ import type { BoardPosition, Junta, MembershipApplication, Profile, UserRole } f
 type AssignableBoardPosition = Exclude<BoardPosition, 'presidente'>;
 
 type BoardModalMode = 'assign' | 'change' | 'remove';
-type DueHistoryItem = { household_id: string; period: string; status: string; amount: number };
+type ManualAction = 'paid' | 'pending';
+type DueHistoryItem = { household_id: string; period: string; status: string; amount: number; payment_source?: string | null; mercadopago_payment_id?: string | null };
 
-export default function SociosClient({ socios, currentProfile, junta, paidByMercadoPagoHouseholdIds, applications, dueHistory }: { socios: Profile[]; currentProfile: Profile; junta: Junta; paidByMercadoPagoHouseholdIds: string[]; applications: MembershipApplication[]; dueHistory: DueHistoryItem[] }) {
+export default function SociosClient({ socios, currentProfile, junta, applications, dueHistory }: { socios: Profile[]; currentProfile: Profile; junta: Junta; applications: MembershipApplication[]; dueHistory: DueHistoryItem[] }) {
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -27,6 +28,7 @@ export default function SociosClient({ socios, currentProfile, junta, paidByMerc
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [paymentManagementError, setPaymentManagementError] = useState('');
   const [manualPeriods, setManualPeriods] = useState<string[]>([]);
+  const [manualAction, setManualAction] = useState<ManualAction>('paid');
   const [deletingSocio, setDeletingSocio] = useState<Profile | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -150,28 +152,55 @@ export default function SociosClient({ socios, currentProfile, junta, paidByMerc
     return isPresident && socio.id !== currentProfile.id && socio.board_position !== 'presidente';
   }
 
-  function openPaymentModal(socio: Profile) {
-    const current = `${currentChileBillingPeriod()}-01`;
-    const available = dueHistory
-      .filter((due) => due.household_id === socio.household_id && due.status !== 'paid')
-      .map((due) => due.period)
-      .filter((period, index, all) => all.indexOf(period) === index);
-    setManualPeriods(available.includes(current) ? [current] : available.slice(0, 1));
-    setPaymentManagementError('');
-    setPaymentSocio(socio);
-  }
-
-  function manualDueOptions(socio: Profile) {
+  function manualDueOptions(socio: Profile, action: ManualAction) {
     const current = `${currentChileBillingPeriod()}-01`;
     const options = dueHistory
       .filter((due) => due.household_id === socio.household_id)
       .filter((due, index, all) => all.findIndex((candidate) => candidate.period === due.period) === index)
       .map((due) => ({ ...due, period: due.period.slice(0, 10) }))
-      .filter((due) => due.status !== 'paid');
-    if (!options.some((due) => due.period === current)) {
-      options.push({ household_id: socio.household_id, period: current, status: 'pending', amount: Number(junta.monthly_due_amount ?? 0) });
+      .filter((due) => action === 'paid'
+        ? ['pending', 'rejected', 'refunded'].includes(due.status)
+        : due.status === 'paid' && due.payment_source === 'manual');
+    if (action === 'paid' && !options.some((due) => due.period === current)) {
+      const currentDue = dueHistory.find((due) => due.household_id === socio.household_id && due.period.slice(0, 10) === current);
+      if (!currentDue || currentDue.status !== 'paid') {
+        options.push({ household_id: socio.household_id, period: current, status: 'pending', amount: Number(junta.monthly_due_amount ?? 0), payment_source: null, mercadopago_payment_id: null });
+      }
     }
     return options.sort((left, right) => left.period.localeCompare(right.period));
+  }
+
+  function openPaymentModal(socio: Profile) {
+    const manualPaidOptions = manualDueOptions(socio, 'paid');
+    const manualReverseOptions = manualDueOptions(socio, 'pending');
+    const initialAction: ManualAction = manualPaidOptions.length ? 'paid' : manualReverseOptions.length ? 'pending' : 'paid';
+    const initialOptions = initialAction === 'paid' ? manualPaidOptions : manualReverseOptions;
+    setManualAction(initialAction);
+    setManualPeriods(initialOptions.slice(0, 12).map((due) => due.period));
+    setPaymentManagementError('');
+    setPaymentSocio(socio);
+  }
+
+  function selectManualAction(action: ManualAction) {
+    if (!paymentSocio) return;
+    setManualAction(action);
+    setManualPeriods(manualDueOptions(paymentSocio, action).slice(0, 12).map((due) => due.period));
+    setPaymentManagementError('');
+  }
+
+  function currentManualOptions() {
+    return paymentSocio ? manualDueOptions(paymentSocio, manualAction) : [];
+  }
+
+  /*
+   * Keep the two operations separate in the UI. SQL remains the authority for
+   * provider locks and complete-batch reversals; the reverse list only exposes
+   * rows explicitly marked as manual.
+   */
+  function renderManualPaymentModal() {
+    if (!paymentSocio) return null;
+    const options = currentManualOptions();
+    return <div className="modal active" role="dialog" aria-modal="true" onMouseDown={(event) => event.target === event.currentTarget && setPaymentSocio(null)}><div className="modal-dialog"><div className="modal-content"><div className="modal-header"><h3 className="modal-title">Gestionar cuotas de {paymentSocio.name}</h3><button className="modal-close" onClick={() => setPaymentSocio(null)} aria-label="Cerrar">×</button></div><div className="modal-body"><div className="view-actions mb-16"><button type="button" className={`btn btn-sm ${manualAction === 'paid' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => selectManualAction('paid')}>Registrar pago manual</button><button type="button" className={`btn btn-sm ${manualAction === 'pending' ? 'btn-primary' : 'btn-secondary'}`} disabled={!manualDueOptions(paymentSocio, 'pending').length} onClick={() => selectManualAction('pending')}>Revertir pago manual</button></div><p className="card-subtitle">{manualAction === 'paid' ? 'Selecciona períodos pendientes o rechazados para registrar el pago fuera de Mercado Pago.' : 'Solo aparecen períodos pagados manualmente. Los pagos de Mercado Pago requieren su reembolso en el proveedor.'}</p><div className="due-period-grid">{options.map((due) => <label className="due-period-option" key={due.period}><input type="checkbox" checked={manualPeriods.includes(due.period)} onChange={(event) => setManualPeriods((current) => event.target.checked ? current.length >= 12 ? current : [...current, due.period].sort() : current.filter((period) => period !== due.period))} /><span>{due.period.slice(0, 7)} · {new Intl.NumberFormat('es-CL').format(due.amount)} CLP</span></label>)}</div>{manualAction === 'paid' ? <><div className="form-group"><label className="form-label" htmlFor="manual-payment-method">Medio de pago recibido</label><select id="manual-payment-method" className="form-input" value={manualPaymentMethod} onChange={(event) => setManualPaymentMethod(event.target.value as 'cash' | 'transfer' | 'other')}><option value="cash">Efectivo</option><option value="transfer">Transferencia bancaria</option><option value="other">Otro medio manual</option></select></div><button className="btn btn-primary btn-block" disabled={paymentSaving || !manualPeriods.length} onClick={() => void updateManualPayment('paid')}>{paymentSaving ? 'Registrando…' : `Registrar ${manualPeriods.length} cuota${manualPeriods.length === 1 ? '' : 's'} pagada${manualPeriods.length === 1 ? '' : 's'}`}</button></> : <button className="btn btn-secondary danger-action btn-block" disabled={paymentSaving || !manualPeriods.length} onClick={() => void updateManualPayment('pending')}>{paymentSaving ? 'Revirtiendo…' : `Revertir ${manualPeriods.length} cuota${manualPeriods.length === 1 ? '' : 's'} manual${manualPeriods.length === 1 ? '' : 'es'}`}</button>}{!options.length && <p className="empty-state">No hay períodos disponibles para esta operación.</p>}{paymentManagementError && <p className="form-error">{paymentManagementError}</p>}</div></div></div></div>;
   }
 
   return (
@@ -185,7 +214,7 @@ export default function SociosClient({ socios, currentProfile, junta, paidByMerc
         {isOwner && <div className="board-position-panel shadow-box"><div><span className="view-subtitle">Plan de la junta</span><h3 className="card-title">Suscripción mensual activa</h3><p>{new Intl.NumberFormat("es-CL").format(junta.subscription_price)} CLP al mes, IVA incluido. Mercado Pago gestiona la renovación automática.</p></div><div className="board-position-control"><button type="button" className="btn btn-secondary danger-action" disabled={cancellingSubscription} onClick={() => void cancelSubscription()}>{cancellingSubscription ? 'Cancelando…' : 'Cancelar suscripción'}</button>{subscriptionMessage && <span className="form-help">{subscriptionMessage}</span>}</div></div>}
         <div className="filters-card"><div className="search-input-wrapper"><span className="search-icon" aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} className="form-input search-input" placeholder="Buscar socio por nombre, dirección o RUT…" /></div><div className="roster-meta"><span className="meta-label">Total en Padrón:</span><strong className="meta-value">{filtered.length} {filtered.length === 1 ? 'vecino' : 'vecinos'}</strong></div></div>
         <div className="roster-grid">
-          {filtered.map((socio) => <article className="socio-card" key={socio.id}><div className="socio-header"><div className="socio-info"><h4 className="socio-name"><strong>{socio.name}</strong></h4>{socio.role === 'dirigente' && <span className="board-role-badge">{boardPositionLabel(socio.board_position)}</span>}<span className="socio-rut">RUT: {formatRUT(socio.rut)}</span></div><span className={`status-badge ${socio.cuota_status === 'al_dia' ? 'al-dia' : 'pendiente'}`}>{socio.cuota_status === 'al_dia' ? 'Al Día' : 'Pendiente'}</span></div><div className="socio-details"><div className="socio-detail-item"><span aria-hidden="true">⌂</span><span>{socio.address} · cuota por domicilio</span></div>{socio.phone && <div className="socio-detail-item"><span aria-hidden="true">☎</span><span>{socio.phone}</span></div>}{socio.email && <div className="socio-detail-item"><span aria-hidden="true">✉</span><span>{socio.email}</span></div>}</div><div className="socio-actions"><button className="btn btn-xs btn-ghost" disabled={paidByMercadoPagoHouseholdIds.includes(socio.household_id)} title={paidByMercadoPagoHouseholdIds.includes(socio.household_id) ? 'Pago del domicilio confirmado por Mercado Pago: no admite cambios manuales' : 'Registrar o corregir el pago de este domicilio'} onClick={() => openPaymentModal(socio)}>{paidByMercadoPagoHouseholdIds.includes(socio.household_id) ? 'Domicilio pagado ✓' : 'Gestionar Cuota del Domicilio'}</button>{canManageBoardRole(socio) && socio.role === 'vecino' && <button className="btn btn-xs btn-secondary" onClick={() => openBoardModal(socio, 'assign')}>Asignar a directiva</button>}{canManageBoardRole(socio) && socio.role === 'dirigente' && <><button className="btn btn-xs btn-secondary" onClick={() => openBoardModal(socio, 'change')}>Cambiar cargo</button><button className="btn btn-xs btn-secondary danger-action" onClick={() => openBoardModal(socio, 'remove')}>Quitar de directiva</button></>}{socio.role === 'vecino' && socio.id !== currentProfile.id && <button className="btn btn-xs btn-secondary danger-action" onClick={() => { setDeleteError(''); setDeleteConfirmation(''); setDeletingSocio(socio); }}>Eliminar</button>}</div></article>)}
+          {filtered.map((socio) => <article className="socio-card" key={socio.id}><div className="socio-header"><div className="socio-info"><h4 className="socio-name"><strong>{socio.name}</strong></h4>{socio.role === 'dirigente' && <span className="board-role-badge">{boardPositionLabel(socio.board_position)}</span>}<span className="socio-rut">RUT: {formatRUT(socio.rut)}</span></div><span className={`status-badge ${socio.cuota_status === 'al_dia' ? 'al-dia' : 'pendiente'}`}>{socio.cuota_status === 'al_dia' ? 'Al Día' : 'Pendiente'}</span></div><div className="socio-details"><div className="socio-detail-item"><span aria-hidden="true">⌂</span><span>{socio.address} · cuota por domicilio</span></div>{socio.phone && <div className="socio-detail-item"><span aria-hidden="true">☎</span><span>{socio.phone}</span></div>}{socio.email && <div className="socio-detail-item"><span aria-hidden="true">✉</span><span>{socio.email}</span></div>}</div><div className="socio-actions"><button className="btn btn-xs btn-ghost" title="Registrar o revertir pagos de este domicilio" onClick={() => openPaymentModal(socio)}>Gestionar Cuota del Domicilio</button>{canManageBoardRole(socio) && socio.role === 'vecino' && <button className="btn btn-xs btn-secondary" onClick={() => openBoardModal(socio, 'assign')}>Asignar a directiva</button>}{canManageBoardRole(socio) && socio.role === 'dirigente' && <><button className="btn btn-xs btn-secondary" onClick={() => openBoardModal(socio, 'change')}>Cambiar cargo</button><button className="btn btn-xs btn-secondary danger-action" onClick={() => openBoardModal(socio, 'remove')}>Quitar de directiva</button></>}{socio.role === 'vecino' && socio.id !== currentProfile.id && <button className="btn btn-xs btn-secondary danger-action" onClick={() => { setDeleteError(''); setDeleteConfirmation(''); setDeletingSocio(socio); }}>Eliminar</button>}</div></article>)}
           {!filtered.length && <div className="split-card full-width"><p>No se encontraron socios con el criterio ingresado.</p></div>}
         </div>
       </> : <div className="roster-grid vecino-profile-grid">
@@ -193,7 +222,7 @@ export default function SociosClient({ socios, currentProfile, junta, paidByMerc
         <article className="card shadow-box vecino-profile-card"><span className="view-subtitle">Directiva de tu Junta</span><h3 className="card-title">Contacto de Directiva</h3><p className="card-subtitle">Comunícate con la directiva para certificados, beneficios o consultas de la comunidad.</p><div className="board-contact-list">{socios.filter((s) => s.role === 'dirigente').map((member) => <div className="board-contact" key={member.id}><div className="board-avatar">{member.name.charAt(0)}</div><div><strong>{member.name}</strong><span>{boardPositionLabel(member.board_position)}</span></div>{member.phone ? <a className="btn btn-secondary btn-sm" href={`tel:${member.phone}`}>Llamar</a> : <a className="btn btn-secondary btn-sm" href={`mailto:${member.email}`}>Email</a>}</div>)}</div></article>
       </div>}
 
-      {paymentSocio && <div className="modal active" role="dialog" aria-modal="true" onMouseDown={(event) => event.target === event.currentTarget && setPaymentSocio(null)}><div className="modal-dialog"><div className="modal-content"><div className="modal-header"><h3 className="modal-title">Gestionar cuotas de {paymentSocio.name}</h3><button className="modal-close" onClick={() => setPaymentSocio(null)} aria-label="Cerrar">×</button></div><div className="modal-body"><p className="card-subtitle">Selecciona uno o más períodos pendientes para registrar el pago fuera de Mercado Pago.</p><div className="due-period-grid">{manualDueOptions(paymentSocio).map((due) => <label className="due-period-option" key={due.period}><input type="checkbox" checked={manualPeriods.includes(due.period)} onChange={(event) => setManualPeriods((current) => event.target.checked ? [...current, due.period].sort() : current.filter((period) => period !== due.period))} /><span>{due.period.slice(0, 7)} · {new Intl.NumberFormat('es-CL').format(due.amount)} CLP</span></label>)}</div>{paymentSocio.cuota_status === 'pendiente' ? <><div className="form-group"><label className="form-label" htmlFor="manual-payment-method">Medio de pago recibido</label><select id="manual-payment-method" className="form-input" value={manualPaymentMethod} onChange={(event) => setManualPaymentMethod(event.target.value as 'cash' | 'transfer' | 'other')}><option value="cash">Efectivo</option><option value="transfer">Transferencia bancaria</option><option value="other">Otro medio manual</option></select></div><button className="btn btn-primary btn-block" disabled={paymentSaving || !manualPeriods.length} onClick={() => void updateManualPayment('paid')}>{paymentSaving ? 'Registrando…' : `Registrar ${manualPeriods.length} cuota${manualPeriods.length === 1 ? '' : 's'} pagada${manualPeriods.length === 1 ? '' : 's'}`}</button></> : <><p className="card-subtitle">Esta cuota fue registrada manualmente o corresponde a un estado anterior. Puedes corregirla como pendiente.</p><button className="btn btn-secondary danger-action btn-block" disabled={paymentSaving || !manualPeriods.length} onClick={() => void updateManualPayment('pending')}>{paymentSaving ? 'Actualizando…' : 'Marcar seleccionadas como pendientes'}</button></>}{paymentManagementError && <p className="form-error">{paymentManagementError}</p>}</div></div></div></div>}
+      {renderManualPaymentModal()}
 
       {deletingSocio && <div className="modal active" role="dialog" aria-modal="true" onMouseDown={(event) => event.target === event.currentTarget && setDeletingSocio(null)}><div className="modal-dialog"><div className="modal-content"><div className="modal-header"><h3 className="modal-title">Eliminar vecino del padrón</h3><button className="modal-close" onClick={() => setDeletingSocio(null)} aria-label="Cerrar">×</button></div><div className="modal-body"><p>Esta acción eliminará la cuenta y el acceso de <strong>{deletingSocio.name}</strong>. Los movimientos contables históricos permanecerán en el libro de caja.</p><div className="form-group"><label className="form-label" htmlFor="delete-member-confirmation">Escribe <strong>ELIMINAR</strong> para confirmar</label><input id="delete-member-confirmation" className="form-input" autoComplete="off" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} placeholder="ELIMINAR" /></div>{deleteError && <p className="form-error">{deleteError}</p>}<div className="modal-footer"><button className="btn btn-ghost" type="button" onClick={() => setDeletingSocio(null)}>Cancelar</button><button className="btn btn-secondary danger-action" type="button" disabled={deleteLoading || deleteConfirmation.trim().toLowerCase() !== 'eliminar'} onClick={() => void confirmDeleteSocio()}>{deleteLoading ? 'Eliminando…' : 'Eliminar definitivamente'}</button></div></div></div></div></div>}
 

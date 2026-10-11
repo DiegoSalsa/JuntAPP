@@ -70,6 +70,8 @@ export async function POST(request: Request) {
     claimedDueId = due.id;
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ?? new URL(request.url).origin;
+    const expirationDateFrom = new Date();
+    const expirationDateTo = new Date(expirationDateFrom.getTime() + 30 * 60_000);
     const webhookUrl = appUrl.startsWith('https://') && process.env.MERCADOPAGO_WEBHOOK_SECRET
       ? `${appUrl}/api/webhooks/mercadopago`
       : undefined;
@@ -91,6 +93,9 @@ export async function POST(request: Request) {
         }],
         payer: { email: profile.email },
         external_reference: `juntapp-due:${due.id}:${profile.junta_id}:${profile.household_id}`,
+        expires: true,
+        expiration_date_from: expirationDateFrom.toISOString(),
+        expiration_date_to: expirationDateTo.toISOString(),
         back_urls: {
           success: `${appUrl}/api/dues/return?result=approved`,
           pending: `${appUrl}/api/dues/return?result=pending`,
@@ -114,7 +119,7 @@ export async function POST(request: Request) {
       status: 'preference_created',
       mercadopago_preference_id: preference.id,
       checkout_url: checkoutUrl,
-      checkout_expires_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+      checkout_expires_at: expirationDateTo.toISOString(),
       checkout_attempt: checkoutAttempt,
       updated_at: new Date().toISOString(),
     }).eq('id', due.id).eq('checkout_attempt', checkoutAttempt).eq('status', 'preference_created');

@@ -21,6 +21,14 @@ type PaymentSearchResponse = {
   results?: Array<{ id?: number; status?: string; transaction_amount?: number; currency_id?: string; collector?: { id?: number } }>;
 };
 
+type PreferenceLookupResponse = {
+  preference_expired?: boolean;
+  expiration_date_from?: string;
+  expiration_date_to?: string;
+  collector_id?: number;
+  message?: string;
+};
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -80,7 +88,19 @@ export async function POST(request: Request) {
     const expired = batch.status === 'preference_created'
       && (!batch.checkout_expires_at || new Date(batch.checkout_expires_at).getTime() <= Date.now());
     let resolvedPreferenceId: string | null = null;
+    if (expired && !batch.mercadopago_preference_id) {
+      return NextResponse.json({ error: 'El intento anterior no tiene una preferencia de Mercado Pago verificable.' }, { status: 409 });
+    }
     if (expired && batch.mercadopago_preference_id) {
+      const preferenceResponse = await fetch(`https://api.mercadopago.com/checkout/preferences/${encodeURIComponent(batch.mercadopago_preference_id)}`, {
+        headers: { Authorization: `Bearer ${account.access_token}` },
+        cache: 'no-store',
+      });
+      const preferenceDetails = await preferenceResponse.json() as PreferenceLookupResponse;
+      if (!preferenceResponse.ok) return NextResponse.json({ error: 'No fue posible verificar la vigencia de la preferencia anterior en Mercado Pago.' }, { status: 502 });
+      const providerExpired = preferenceDetails.preference_expired === true
+        || Boolean(preferenceDetails.expiration_date_to && new Date(preferenceDetails.expiration_date_to).getTime() <= Date.now());
+      if (!providerExpired) return NextResponse.json({ error: 'La preferencia anterior aún está vigente en Mercado Pago. Espera su expiración antes de renovar.' }, { status: 409 });
       const searchUrl = new URL('https://api.mercadopago.com/v1/payments/search');
       searchUrl.searchParams.set('external_reference', `juntapp-due-batch:${batch.id}:${profile.junta_id}:${profile.household_id}`);
       searchUrl.searchParams.set('sort', 'date_created');
@@ -115,6 +135,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: claimError?.message ?? 'Otro intento está preparando este cobro. Espera unos segundos y vuelve a intentar.' }, { status: 409 });
     }
     const attempt = Number(claimResult.attempt);
+    const expirationDateFrom = new Date();
+    const expirationDateTo = new Date(expirationDateFrom.getTime() + 30 * 60_000);
+    const expiresAt = expirationDateTo.toISOString();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ?? new URL(request.url).origin;
     const webhookUrl = appUrl.startsWith('https://') && process.env.MERCADOPAGO_WEBHOOK_SECRET
       ? `${appUrl}/api/webhooks/mercadopago`
@@ -137,6 +160,9 @@ export async function POST(request: Request) {
         }],
         payer: { email: profile.email },
         external_reference: `juntapp-due-batch:${batch.id}:${profile.junta_id}:${profile.household_id}`,
+        expires: true,
+        expiration_date_from: expirationDateFrom.toISOString(),
+        expiration_date_to: expiresAt,
         back_urls: {
           success: `${appUrl}/api/dues/return?result=approved&batch=${batch.id}`,
           pending: `${appUrl}/api/dues/return?result=pending&batch=${batch.id}`,
@@ -156,7 +182,6 @@ export async function POST(request: Request) {
     if (!response.ok || !preference.id || !checkoutUrl) {
       throw new Error(preference.cause?.[0]?.description ?? preference.message ?? 'Mercado Pago no pudo crear el cobro.');
     }
-    const expiresAt = new Date(Date.now() + 30 * 60_000).toISOString();
     const { error: updateError } = await admin.rpc('complete_due_batch_checkout', {
       p_batch_id: batch.id,
       p_attempt: attempt,

@@ -38,6 +38,11 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
     .select('*')
     .eq('household_id', profile?.household_id)
     .order('period', { ascending: true });
+  const { data: household } = await supabase
+    .from('households')
+    .select('created_at')
+    .eq('id', profile?.household_id)
+    .maybeSingle();
   const { data: paymentBatches } = profile ? await createAdminClient()
     .from('due_payment_batches')
     .select('id, total_amount, status, payment_source, mercadopago_payment_id, created_at, confirmed_at, due_payment_batch_items(period, amount)')
@@ -92,6 +97,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
       junta={junta!}
       currentDue={currentDue ?? null}
       dueHistory={dueHistory ?? []}
+      householdCreatedAt={household?.created_at ?? null}
       paymentBatches={paymentBatches ?? []}
       paymentReturn={params.cuota ?? null}
       connectionReturn={params.mercadopago ?? null}
