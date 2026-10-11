@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { rateLimit } from '@/lib/rate-limit';
+import { requestClientKey } from '@/lib/request-client-key';
 import {
   challengeCodeMatches,
   createSuperadminSessionToken,
@@ -17,16 +18,14 @@ const schema = z.object({
   email: z.email().trim().toLowerCase(),
   code: z.string().regex(/^\d{6}$/),
 });
-const invalidCodeMessage = 'Código inválido o vencido.';
+const invalidCodeMessage = 'CÃ³digo invÃ¡lido o vencido.';
 
 export async function POST(request: NextRequest) {
-  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    ?? request.headers.get('x-real-ip')
-    ?? 'local';
+  const clientIp = requestClientKey(request);
   const limit = await rateLimit(`superadmin-code-verify:${clientIp}`, 15, 15 * 60_000);
   if (!limit.allowed) {
     return NextResponse.json(
-      { error: 'Demasiados intentos de verificación. Espera 15 minutos.' },
+      { error: 'Demasiados intentos de verificaciÃ³n. Espera 15 minutos.' },
       {
         status: 429,
         headers: { 'Retry-After': String(Math.ceil((limit.resetAt - Date.now()) / 1000)) },
@@ -60,7 +59,7 @@ export async function POST(request: NextRequest) {
   const sessionToken = createSuperadminSessionToken(challenge.email);
   if (!sessionToken) return NextResponse.json({ error: invalidCodeMessage }, { status: 401 });
 
-  console.info('[Superadmin] Acceso por código verificado.', {
+  console.info('[Superadmin] Acceso por cÃ³digo verificado.', {
     email: challenge.email,
     ipAddress: clientIp,
   });

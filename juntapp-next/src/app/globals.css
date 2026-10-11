@@ -32,6 +32,22 @@
   display: contents;
 }
 
+/* The legacy public reset intentionally flattens generic form controls. The
+   trial request needs touch-friendly controls on top of that visual system. */
+.original-public-root .trial-request-field {
+  width: 100% !important;
+  min-height: 48px !important;
+  padding: 10px 12px !important;
+  border: 2px solid #071b34 !important;
+  background: #fff !important;
+  color: #071b34 !important;
+  font-size: 15px !important;
+  line-height: 1.35 !important;
+}
+.original-public-root textarea.trial-request-field { min-height: 100px !important; resize: vertical; }
+.original-public-root .trial-request-checkbox { width: 18px !important; height: 18px !important; flex: 0 0 18px; }
+.original-public-root .trial-request-submit { min-height: 54px !important; padding: 14px 20px !important; }
+
 .vecino-profile-grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 32px; }
 .vecino-profile-card { padding: 28px; }
 .profile-card-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
@@ -63,6 +79,17 @@
 .verification-badge.verified { color: #087443; background: #e7f8ef; }
 .verification-badge.pending { color: #8a5200; background: #fff7d6; }
 .verification-badge.manual { color: #5b6472; background: #f3f4f6; }
+
+.due-period-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 0.75rem; }
+.due-period-card { display: flex; min-height: 112px; flex-direction: column; gap: 0.3rem; padding: 0.85rem; border: 1px solid var(--border-color, #e5e7eb); border-radius: 0.9rem; background: #fff; cursor: pointer; }
+.due-period-card input { align-self: flex-end; width: 1.1rem; height: 1.1rem; accent-color: var(--primary-color, #1d4ed8); }
+.due-period-card.selected { border-color: var(--primary-color, #1d4ed8); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color, #1d4ed8) 18%, transparent); }
+.due-period-card.paid { background: #f0fdf4; border-color: #86efac; }
+.due-period-card.pending { background: #fff7ed; border-color: #fdba74; }
+.due-period-label { font-weight: 700; text-transform: capitalize; }
+.due-period-status { font-size: 0.82rem; color: #5b6472; }
+.due-payment-summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
+@media (max-width: 520px) { .due-period-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .due-payment-summary > * { width: 100%; } }
 .treasury-sync-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; color: var(--text-secondary); font-size: .8rem; }
 .visible { display: block !important; }
 .poll-option-editor { display: flex; gap: 8px; margin-bottom: 8px; }
@@ -100,7 +127,6 @@
 .board-position-panel { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 24px; padding: 24px; background: var(--bg-card); border: 2px solid var(--primary); box-shadow: 5px 5px 0 var(--accent-orange) !important; }
 .board-position-panel p { color: var(--text-secondary); margin-top: 4px; }
 .board-position-control { width: min(100%, 300px); flex: 0 0 auto; }
-.socio-actions { flex-wrap: wrap; }
 .board-role-badge { display: inline-flex; width: fit-content; margin: 4px 0; padding: 2px 8px; background: var(--primary); color: white; font-size: .7rem; font-weight: 800; text-transform: uppercase; }
 .registration-price-preview, .registration-price { display: grid; gap: 3px; margin: 16px 0; padding: 16px; border: 2px solid var(--primary); background: #fffbeb; box-shadow: 4px 4px 0 var(--accent-orange); }
 .registration-price-preview strong, .registration-price strong { color: var(--primary); font-family: 'Montserrat', sans-serif; font-size: 1.45rem; }
@@ -759,4 +785,3 @@ body .plans-page .plans-hero p{color:#fff!important}body .plans-page .plan-card.
 .registration-addon-upcoming{color:#64748b;cursor:not-allowed}.registration-addon-upcoming strong{float:right;color:#087843;text-transform:uppercase;letter-spacing:.06em}.registration-addon-upcoming input{cursor:not-allowed}
 .style-swiss .whatsapp-addon-upcoming,.original-public-root.style-swiss .whatsapp-addon-upcoming,.style-swiss .whatsapp-addon-upcoming input[type="checkbox"],.original-public-root.style-swiss .whatsapp-addon-upcoming input[type="checkbox"]{cursor:not-allowed!important}
 .style-swiss .whatsapp-addon-upcoming b,.original-public-root.style-swiss .whatsapp-addon-upcoming b{background:#168b55!important;color:#fff!important;padding:7px 11px!important;border-radius:3px!important;letter-spacing:.06em!important}
-

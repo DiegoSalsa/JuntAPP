@@ -34,6 +34,79 @@ export async function processMemberDuePayment(paymentId: string, mercadoPagoUser
   const payment = await response.json() as MercadoPagoPayment & { message?: string };
   if (!response.ok) throw new Error(payment.message ?? 'No fue posible verificar el pago de cuota.');
 
+  const batchReference = payment.external_reference?.match(/^juntapp-due-batch:([0-9a-f-]{36}):([0-9a-f-]{36}):([0-9a-f-]{36})$/i);
+  if (batchReference) {
+    const [, batchId, batchJuntaId, batchHouseholdId] = batchReference;
+    if (batchJuntaId !== connection.junta_id || Number(payment.collector_id) !== Number(connection.mercadopago_user_id)) {
+      throw new Error('El pago pertenece a otra junta o cuenta recaudadora.');
+    }
+    const { data: batch, error: batchError } = await admin
+      .from('due_payment_batches')
+      .select('id, junta_id, household_id, total_amount, status, mercadopago_payment_id, transaction_id')
+      .eq('id', batchId)
+      .eq('junta_id', batchJuntaId)
+      .eq('household_id', batchHouseholdId)
+      .single();
+    if (batchError || !batch) throw new Error('No se encontró el lote de cuotas asociado al pago.');
+    if (payment.currency_id !== 'CLP' || Number(payment.transaction_amount) !== Number(batch.total_amount)) {
+      throw new Error('El monto o moneda no coincide con el lote de cuotas registrado.');
+    }
+    const [{ data: items }] = await Promise.all([
+      admin.from('due_payment_batch_items').select('period, amount').eq('batch_id', batch.id).order('period'),
+    ]);
+    const periods = (items ?? []).map((item) => new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(item.period))).join(', ');
+    if (payment.status === 'approved') {
+      const { error } = await admin.rpc('record_approved_due_payment_batch', {
+        p_batch_id: batch.id,
+        p_payment_id: String(payment.id),
+        p_paid_at: payment.date_approved ?? new Date().toISOString(),
+      });
+      if (error) throw new Error(error.message);
+    } else if (payment.status === 'refunded') {
+      const { error } = await admin.rpc('record_refunded_due_payment_batch', {
+        p_batch_id: batch.id,
+        p_payment_id: String(payment.id),
+      });
+      if (error) throw new Error(error.message);
+    } else if (['rejected', 'cancelled'].includes(payment.status) && batch.status !== 'approved') {
+      const { error } = await admin.from('due_payment_batches').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', batch.id).in('status', ['pending', 'preference_created']);
+      if (error) throw new Error(error.message);
+    }
+    const { error: eventError } = await admin.from('payment_events').insert({
+      provider_event_id: `mercadopago-due-batch:${payment.id}:${payment.status}`,
+      junta_id: batch.junta_id,
+      payload: payment,
+    });
+    if (eventError?.code === '23505') return payment.status;
+    if (eventError) throw new Error(eventError.message);
+    const emailStatus = payment.status === 'approved' ? 'approved' : payment.status === 'refunded' ? 'refunded' : ['rejected', 'cancelled'].includes(payment.status) ? 'rejected' : null;
+    if (emailStatus) {
+      const [{ data: recipients }, { data: junta }] = await Promise.all([
+        admin.from('profiles').select('id, name, email').eq('household_id', batch.household_id).eq('membership_status', 'active'),
+        admin.from('juntas').select('name').eq('id', batch.junta_id).single(),
+      ]);
+      await Promise.all((recipients ?? []).map((recipient) => {
+        const template = duePaymentTemplate({
+          name: recipient.name,
+          juntaName: junta?.name ?? 'tu junta vecinal',
+          period: periods || 'los períodos seleccionados',
+          amount: Number(batch.total_amount),
+          status: emailStatus,
+          paymentId: String(payment.id),
+          actionUrl: `${publicAppUrl()}/tesoreria`,
+        });
+        return sendEmailBestEffort({ to: recipient.email, ...template, idempotencyKey: `mercadopago-due-batch-email:${payment.id}:${payment.status}:${recipient.id}` });
+      }));
+      const pushCopy = emailStatus === 'approved'
+        ? { title: 'Cuotas del domicilio recibidas', message: `Mercado Pago confirmó ${periods || 'los períodos seleccionados'} por $${Number(batch.total_amount).toLocaleString('es-CL')}.` }
+        : emailStatus === 'refunded'
+          ? { title: 'Cuotas reembolsadas', message: `Mercado Pago informó el reembolso de ${periods || 'los períodos seleccionados'}.` }
+          : { title: 'Pago de cuotas rechazado', message: `Mercado Pago rechazó el pago de ${periods || 'los períodos seleccionados'}. Puedes intentarlo nuevamente.` };
+      await sendPushToUsers((recipients ?? []).map((recipient) => recipient.id), { ...pushCopy, action: '/tesoreria', tag: `cuota-lote:${batch.id}:${payment.status}` });
+    }
+    return payment.status;
+  }
+
   const reference = payment.external_reference?.match(/^juntapp-due:([0-9a-f-]{36}):([0-9a-f-]{36}):([0-9a-f-]{36})$/i);
   if (!reference) return null;
   const [, dueId, juntaId, householdId] = reference;

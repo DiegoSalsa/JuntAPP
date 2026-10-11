@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { rateLimit } from '@/lib/rate-limit';
+import { requestClientKey } from '@/lib/request-client-key';
 import { requestSuperadminLoginCode } from '@/lib/superadmin-code';
 import {
   SUPERADMIN_CHALLENGE_COOKIE,
@@ -11,16 +12,14 @@ import {
 } from '@/lib/superadmin-session';
 
 const schema = z.object({ email: z.email().trim().toLowerCase() });
-const genericMessage = 'Si el correo está autorizado, recibirás un código de acceso.';
+const genericMessage = 'Si el correo estÃ¡ autorizado, recibirÃ¡s un cÃ³digo de acceso.';
 
 export async function POST(request: NextRequest) {
-  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    ?? request.headers.get('x-real-ip')
-    ?? 'local';
+  const clientIp = requestClientKey(request);
   const limit = await rateLimit(`superadmin-code-request:${clientIp}`, 5, 15 * 60_000);
   if (!limit.allowed) {
     return NextResponse.json(
-      { error: 'Demasiadas solicitudes de código. Espera 15 minutos.' },
+      { error: 'Demasiadas solicitudes de cÃ³digo. Espera 15 minutos.' },
       {
         status: 429,
         headers: { 'Retry-After': String(Math.ceil((limit.resetAt - Date.now()) / 1000)) },
@@ -29,7 +28,7 @@ export async function POST(request: NextRequest) {
   }
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: 'Ingresa un correo válido.' }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: 'Ingresa un correo vÃ¡lido.' }, { status: 400 });
 
   const previousChallenge = verifySuperadminChallenge(
     request.cookies.get(SUPERADMIN_CHALLENGE_COOKIE)?.value,
@@ -52,8 +51,8 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json(
       {
         error: delivery.status === 'not_configured'
-          ? 'El servicio de correo no está configurado. Revisa RESEND_API_KEY en producción.'
-          : 'Resend rechazó el envío del código. Revisa el remitente o los logs de producción.',
+          ? 'El servicio de correo no estÃ¡ configurado. Revisa RESEND_API_KEY en producciÃ³n.'
+          : 'Resend rechazÃ³ el envÃ­o del cÃ³digo. Revisa el remitente o los logs de producciÃ³n.',
       },
       {
         status: 503,

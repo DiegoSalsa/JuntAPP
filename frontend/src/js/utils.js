@@ -3,6 +3,35 @@
    ========================================================================== */
 
 export const utils = {
+  /** Remove executable markup from legacy template strings before they reach innerHTML. */
+  sanitizeHtml(value) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(String(value ?? ''), 'text/html');
+    doc.querySelectorAll('script, iframe, object, embed, link, meta, base, style').forEach((node) => node.remove());
+    doc.querySelectorAll('*').forEach((element) => {
+      [...element.attributes].forEach((attribute) => {
+        const name = attribute.name.toLowerCase();
+        const attrValue = attribute.value.trim().toLowerCase();
+        if (name.startsWith('on') || name === 'srcdoc' || ((name === 'href' || name === 'src' || name === 'action' || name === 'formaction') && (attrValue.startsWith('javascript:') || attrValue.startsWith('vbscript:') || attrValue.startsWith('data:text/html')))) {
+          element.removeAttribute(attribute.name);
+        }
+      });
+    });
+    return doc.body.innerHTML;
+  },
+
+  installSafeHtmlPolicy() {
+    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+    if (!descriptor?.set || window.__juntappSafeHtmlPolicy) return;
+    Object.defineProperty(Element.prototype, 'innerHTML', {
+      configurable: descriptor.configurable,
+      enumerable: descriptor.enumerable,
+      get: descriptor.get,
+      set(value) { descriptor.set.call(this, utils.sanitizeHtml(value)); },
+    });
+    window.__juntappSafeHtmlPolicy = true;
+  },
+
   // Format to Chilean Pesos (CLP)
   formatCLP(amount) {
     return new Intl.NumberFormat("es-CL", {

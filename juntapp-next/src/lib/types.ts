@@ -177,6 +177,8 @@ export interface MemberDue {
   refund_transaction_id: number | null;
   payment_source: 'mercadopago' | 'manual' | null;
   manual_payment_method: 'cash' | 'transfer' | 'other' | null;
+  payment_batch_id?: string | null;
+  checkout_expires_at?: string | null;
   created_at: string;
   updated_at: string;
 }

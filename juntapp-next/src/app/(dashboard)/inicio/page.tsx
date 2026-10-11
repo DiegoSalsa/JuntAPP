@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { Metadata } from 'next';
 import InicioAlerts from '@/components/dashboard/inicio/InicioAlerts';
+import { calculateTreasuryStats } from '@/lib/treasury';
 
 export const metadata: Metadata = { title: 'Panel de Inicio — JuntAPP' };
 
@@ -26,12 +27,11 @@ export default async function InicioPage() {
   const [{ count: sociosCount }, { data: paidDues }, { data: transactions }, { data: announcements }, { data: activePoll }] = await Promise.all([
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('junta_id', juntaId),
     supabase.from('member_dues').select('household_id').eq('junta_id', juntaId).eq('period', period).eq('status', 'paid').not('household_id', 'is', null),
-    supabase.from('transactions').select('type, amount').eq('junta_id', juntaId),
+    supabase.from('transactions').select('type, amount, accounting_kind, gross_amount, fee_amount, net_amount').eq('junta_id', juntaId).limit(1000),
     supabase.from('announcements').select('*').eq('junta_id', juntaId).order('created_at', { ascending: false }).limit(3),
     supabase.from('polls').select('title').eq('junta_id', juntaId).eq('active', true).maybeSingle(),
   ]);
-  const income = transactions?.filter((t) => t.type === 'ingreso').reduce((sum, t) => sum + Number(t.amount), 0) ?? 0;
-  const expenses = transactions?.filter((t) => t.type === 'egreso').reduce((sum, t) => sum + Number(t.amount), 0) ?? 0;
+  const treasury = calculateTreasuryStats(transactions ?? []);
   const paid = new Set((paidDues ?? []).map((due) => due.household_id)).size;
   const myDuePaid = (paidDues ?? []).some((due) => due.household_id === profile?.household_id);
   const junta = Array.isArray(profile?.juntas) ? profile.juntas[0]?.name : profile?.juntas?.name;
@@ -48,7 +48,7 @@ export default async function InicioPage() {
       <InicioAlerts urgent={urgent?.content} isDirigente={profile?.role === 'dirigente'} />
 
       <div className="stats-grid">
-        <div className="stat-card note-yellow-v3"><div className="stat-icon income"><Icon type="money" /></div><div className="stat-details"><span className="stat-label">Caja Disponible</span><h3 className="stat-value">{formatCurrency(income - expenses)}</h3><span className="stat-trend success">✔ Cuentas transparentes</span></div></div>
+        <div className="stat-card note-yellow-v3"><div className="stat-icon income"><Icon type="money" /></div><div className="stat-details"><span className="stat-label">Saldo registrado</span><h3 className="stat-value">{formatCurrency(treasury.balance)}</h3><span className="stat-trend success">✔ Transferencias internas excluidas</span></div></div>
         <div className="stat-card note-blue-v3"><div className="stat-icon members"><Icon type="members" /></div><div className="stat-details"><span className="stat-label">Socios Registrados</span><h3 className="stat-value">{sociosCount ?? 0}</h3><span className="stat-trend">{paid} domicilios con cuota al día</span></div></div>
         <Link className="stat-card select-action note-orange-v3" href="/consultas"><div className="stat-icon voting"><Icon type="vote" /></div><div className="stat-details"><span className="stat-label">Consulta Activa</span><h3 className="stat-value text-accent">{activePoll?.title ?? 'Sin consulta activa'}</h3><span className="stat-trend accent">{activePoll ? 'Participa ahora' : 'Te avisaremos de la próxima'}</span></div></Link>
         <div className="stat-card note-green-v3"><div className="stat-icon event"><Icon type="calendar" /></div><div className="stat-details"><span className="stat-label">Cuota de mi Domicilio</span><h3 className="stat-value">{myDuePaid ? 'Al Día' : 'Pendiente'}</h3><span className="stat-trend">{profile?.address}</span></div></div>

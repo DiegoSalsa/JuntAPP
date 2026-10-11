@@ -1,7 +1,5 @@
 -- Local development data
--- Legacy board demo password: password123
--- Current board demo password: DirectivaDemo2026!
--- Neighbor demo password: VecinoDemo2026!
+-- Development seed users receive random passwords; use Supabase admin tooling to set local credentials.
 
 INSERT INTO public.juntas (id, name, slug, address, comuna, region, invite_code, subscription_status, subscription_price)
 VALUES (
@@ -27,7 +25,7 @@ VALUES
     'd5089e9f-9694-4d87-8d26-384196c80001',
     '00000000-0000-0000-0000-000000000000',
     'admin@juntapp.cl',
-    '$2a$10$yFfJ3NpeNlEuxmK2DkC/lO0zXpG5p1Y.hP6j24dK4f9FfGjH69g.a',
+    extensions.crypt(encode(gen_random_bytes(32), 'hex'), extensions.gen_salt('bf')),
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"name":"Vecina Presidenta (Admin)","rut":"12.345.678-9","address":"Pasaje Los Aromos 110","phone":"+56 9 1111 1111","junta_action":"join","invite_code":"DEMO26","manual_invite":true}',
@@ -37,7 +35,7 @@ VALUES
     'd5089e9f-9694-4d87-8d26-384196c80002',
     '00000000-0000-0000-0000-000000000000',
     'luis.munoz@correo.cl',
-    '$2a$10$yFfJ3NpeNlEuxmK2DkC/lO0zXpG5p1Y.hP6j24dK4f9FfGjH69g.a',
+    extensions.crypt(encode(gen_random_bytes(32), 'hex'), extensions.gen_salt('bf')),
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"name":"Luis Humberto Muñoz Henríquez","rut":"8.122.904-7","address":"Calle Principal 1024","phone":"+56 9 5432 1098","junta_action":"join","invite_code":"DEMO26","manual_invite":true}',
@@ -47,7 +45,7 @@ VALUES
     'd5089e9f-9694-4d87-8d26-384196c80003',
     '00000000-0000-0000-0000-000000000000',
     'maria.ramirez@correo.cl',
-    '$2a$10$yFfJ3NpeNlEuxmK2DkC/lO0zXpG5p1Y.hP6j24dK4f9FfGjH69g.a',
+    extensions.crypt(encode(gen_random_bytes(32), 'hex'), extensions.gen_salt('bf')),
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"name":"María José Ramírez Valdés","rut":"14.341.203-K","address":"Pasaje Los Aromos 345","phone":"+56 9 8765 4321","junta_action":"join","invite_code":"DEMO26","manual_invite":true}',
@@ -57,7 +55,7 @@ VALUES
     'd5089e9f-9694-4d87-8d26-384196c80004',
     '00000000-0000-0000-0000-000000000000',
     'pedro.soto@correo.cl',
-    '$2a$10$yFfJ3NpeNlEuxmK2DkC/lO0zXpG5p1Y.hP6j24dK4f9FfGjH69g.a',
+    extensions.crypt(encode(gen_random_bytes(32), 'hex'), extensions.gen_salt('bf')),
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"name":"Pedro Ignacio Soto Contreras","rut":"9.403.220-4","address":"Avenida Los Girasoles 120","phone":"+56 9 7654 3210","junta_action":"join","invite_code":"DEMO26","manual_invite":true}',
@@ -74,63 +72,63 @@ INSERT INTO auth.users (
 VALUES
 (
     'd5089e9f-9694-4d87-8d26-384196c80010', '00000000-0000-0000-0000-000000000000',
-    'vecino.demo@juntapp.cl', extensions.crypt('VecinoDemo2026!', extensions.gen_salt('bf')), now(),
+    'vecino.demo@juntapp.cl', extensions.crypt(encode(gen_random_bytes(32), 'hex'), extensions.gen_salt('bf')), now(),
     '{"provider":"email","providers":["email"]}',
     '{"name":"Camila Rojas Fuentes","rut":"171234565","address":"Avenida Los Pinos 123, Depto 4","phone":"+56 9 2100 1001","junta_action":"join","invite_code":"DEMO26","manual_invite":true}',
     false, 'authenticated', now(), now(), now()
 ),
 (
     'd5089e9f-9694-4d87-8d26-384196c80011', '00000000-0000-0000-0000-000000000000',
-    'tomas.demo@juntapp.cl', extensions.crypt('VecinoDemo2026!', extensions.gen_salt('bf')), now(),
+    'tomas.demo@juntapp.cl', extensions.crypt(encode(gen_random_bytes(32), 'hex'), extensions.gen_salt('bf')), now(),
     '{"provider":"email","providers":["email"]}',
     '{"name":"Tomás Rojas Fuentes","rut":"182345679","address":"Av. Los Pinos #123 Dpto. 4","phone":"+56 9 2100 1002","junta_action":"join","invite_code":"DEMO26","manual_invite":true}',
     false, 'authenticated', now(), now(), now()
 ),
 (
     'd5089e9f-9694-4d87-8d26-384196c80012', '00000000-0000-0000-0000-000000000000',
-    'ana.demo@juntapp.cl', extensions.crypt('VecinoDemo2026!', extensions.gen_salt('bf')), now(),
+    'ana.demo@juntapp.cl', extensions.crypt(encode(gen_random_bytes(32), 'hex'), extensions.gen_salt('bf')), now(),
     '{"provider":"email","providers":["email"]}',
     '{"name":"Ana Morales Díaz","rut":"193456782","address":"Pasaje Los Aromos 345","phone":"+56 9 2100 1003","junta_action":"join","invite_code":"DEMO26","manual_invite":true}',
     false, 'authenticated', now(), now(), now()
 ),
 (
     'd5089e9f-9694-4d87-8d26-384196c80013', '00000000-0000-0000-0000-000000000000',
-    'juan.demo@juntapp.cl', extensions.crypt('VecinoDemo2026!', extensions.gen_salt('bf')), now(),
+    'juan.demo@juntapp.cl', extensions.crypt(encode(gen_random_bytes(32), 'hex'), extensions.gen_salt('bf')), now(),
     '{"provider":"email","providers":["email"]}',
     '{"name":"Juan Morales Díaz","rut":"204567891","address":"Pje. Los Aromos Nro. 345","phone":"+56 9 2100 1004","junta_action":"join","invite_code":"DEMO26","manual_invite":true}',
     false, 'authenticated', now(), now(), now()
 ),
 (
     'd5089e9f-9694-4d87-8d26-384196c80014', '00000000-0000-0000-0000-000000000000',
-    'carolina.demo@juntapp.cl', extensions.crypt('VecinoDemo2026!', extensions.gen_salt('bf')), now(),
+    'carolina.demo@juntapp.cl', extensions.crypt(encode(gen_random_bytes(32), 'hex'), extensions.gen_salt('bf')), now(),
     '{"provider":"email","providers":["email"]}',
     '{"name":"Carolina Pérez Soto","rut":"155678909","address":"Calle Las Acacias 880","phone":"+56 9 2100 1005","junta_action":"join","invite_code":"DEMO26","manual_invite":true}',
     false, 'authenticated', now(), now(), now()
 ),
 (
     'd5089e9f-9694-4d87-8d26-384196c80015', '00000000-0000-0000-0000-000000000000',
-    'diego.demo@juntapp.cl', extensions.crypt('VecinoDemo2026!', extensions.gen_salt('bf')), now(),
+    'diego.demo@juntapp.cl', extensions.crypt(encode(gen_random_bytes(32), 'hex'), extensions.gen_salt('bf')), now(),
     '{"provider":"email","providers":["email"]}',
     '{"name":"Diego Pérez Soto","rut":"16678901K","address":"Calle Las Acacias #880","phone":"+56 9 2100 1006","junta_action":"join","invite_code":"DEMO26","manual_invite":true}',
     false, 'authenticated', now(), now(), now()
 ),
 (
     'd5089e9f-9694-4d87-8d26-384196c80016', '00000000-0000-0000-0000-000000000000',
-    'elena.demo@juntapp.cl', extensions.crypt('VecinoDemo2026!', extensions.gen_salt('bf')), now(),
+    'elena.demo@juntapp.cl', extensions.crypt(encode(gen_random_bytes(32), 'hex'), extensions.gen_salt('bf')), now(),
     '{"provider":"email","providers":["email"]}',
     '{"name":"Elena Contreras Silva","rut":"137890127","address":"Camino El Sol 72","phone":"+56 9 2100 1007","junta_action":"join","invite_code":"DEMO26","manual_invite":true}',
     false, 'authenticated', now(), now(), now()
 ),
 (
     'd5089e9f-9694-4d87-8d26-384196c80017', '00000000-0000-0000-0000-000000000000',
-    'roberto.demo@juntapp.cl', extensions.crypt('VecinoDemo2026!', extensions.gen_salt('bf')), now(),
+    'roberto.demo@juntapp.cl', extensions.crypt(encode(gen_random_bytes(32), 'hex'), extensions.gen_salt('bf')), now(),
     '{"provider":"email","providers":["email"]}',
     '{"name":"Roberto Contreras Silva","rut":"148901236","address":"Cno. El Sol N° 72","phone":"+56 9 2100 1008","junta_action":"join","invite_code":"DEMO26","manual_invite":true}',
     false, 'authenticated', now(), now(), now()
 ),
 (
     'd5089e9f-9694-4d87-8d26-384196c80018', '00000000-0000-0000-0000-000000000000',
-    'directiva.demo@juntapp.cl', extensions.crypt('DirectivaDemo2026!', extensions.gen_salt('bf')), now(),
+    'directiva.demo@juntapp.cl', extensions.crypt(encode(gen_random_bytes(32), 'hex'), extensions.gen_salt('bf')), now(),
     '{"provider":"email","providers":["email"]}',
     '{"name":"Administración Demo","rut":"126543212","address":"Sede Vecinal 10","phone":"+56 9 2100 1099","junta_action":"join","invite_code":"DEMO26","manual_invite":true}',
     false, 'authenticated', now(), now(), now()

@@ -33,6 +33,12 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
     .eq('household_id', profile?.household_id)
     .eq('period', period)
     .maybeSingle();
+  const { data: dueHistory } = await supabase
+    .from('member_dues')
+    .select('*')
+    .eq('household_id', profile?.household_id)
+    .order('period', { ascending: true })
+    .limit(24);
   const { data: mercadoPagoAccount } = profile ? await createAdminClient()
     .from('mercadopago_junta_accounts')
     .select('mercadopago_user_id, connected_at')
@@ -80,6 +86,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
       currentProfile={profile!}
       junta={junta!}
       currentDue={currentDue ?? null}
+      dueHistory={dueHistory ?? []}
       paymentReturn={params.cuota ?? null}
       connectionReturn={params.mercadopago ?? null}
       mercadoPagoConnection={{

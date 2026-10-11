@@ -205,42 +205,7 @@ export const db = {
       const cleanInput = emailOrRut.trim().toLowerCase();
       const socios = JSON.parse(localStorage.getItem("juntapp_socios")) || [];
       
-      // Admin bypass
-      if (cleanInput === "admin@juntapp.cl" && password === "password123") {
-        const adminUser = {
-          id: "admin-uuid-12345",
-          name: "Directiva JuntAPP Admin",
-          rut: "10.450.312-8",
-          address: "Sede Comunitaria 10",
-          phone: "+56 9 9999 8888",
-          email: "admin@juntapp.cl",
-          role: "dirigente",
-          cuota_status: "al_dia"
-        };
-        localStorage.setItem("juntapp_current_user", JSON.stringify(adminUser));
-        return adminUser;
-      }
-
-      // Find partner matching email or RUT
-      const cleanRut = emailOrRut.replace(/[^0-9kK]/g, '').toUpperCase();
-      const socio = socios.find(s => s.email.toLowerCase() === cleanInput || s.rut.replace(/[^0-9kK]/g, '').toUpperCase() === cleanRut);
-      
-      if (socio && password === "password123") {
-        const loggedUser = {
-          id: socio.id.toString(),
-          name: socio.name,
-          rut: socio.rut,
-          address: socio.address,
-          phone: socio.phone,
-          email: socio.email,
-          role: socio.role || "vecino",
-          cuota_status: socio.cuotaStatus
-        };
-        localStorage.setItem("juntapp_current_user", JSON.stringify(loggedUser));
-        return loggedUser;
-      }
-      
-      throw new Error("Credenciales inválidas. Para la demo usa password123.");
+      throw new Error("Local access is disabled. Configure Supabase to sign in.");
     }
   },
 

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { rateLimit } from '@/lib/rate-limit';
+import { requestClientKey } from '@/lib/request-client-key';
 
 const paymentSchema = z.object({
   eventId: z.string().min(1).max(200),
@@ -21,8 +22,8 @@ function signatureIsValid(body: string, receivedSignature: string | null, secret
 }
 
 export async function POST(request: Request) {
-  const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  if (!(await rateLimit(`payment:${forwardedFor}`, 60, 60_000)).allowed) {
+  const clientKey = requestClientKey(request);
+  if (!(await rateLimit(`payment:${clientKey}`, 60, 60_000)).allowed) {
     return NextResponse.json({ error: 'Demasiadas solicitudes' }, { status: 429 });
   }
 
@@ -33,19 +34,19 @@ export async function POST(request: Request) {
 
   const rawBody = await request.text();
   if (!signatureIsValid(rawBody, request.headers.get('x-juntapp-signature'), secret)) {
-    return NextResponse.json({ error: 'Firma inválida' }, { status: 401 });
+    return NextResponse.json({ error: 'Firma invÃ¡lida' }, { status: 401 });
   }
 
   let json: unknown;
   try {
     json = JSON.parse(rawBody);
   } catch {
-    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
+    return NextResponse.json({ error: 'JSON invÃ¡lido' }, { status: 400 });
   }
 
   const parsed = paymentSchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Evento inválido', details: z.flattenError(parsed.error) }, { status: 400 });
+    return NextResponse.json({ error: 'Evento invÃ¡lido', details: z.flattenError(parsed.error) }, { status: 400 });
   }
 
   try {

@@ -81,7 +81,15 @@ async function importSettlementRows(juntaId: string, rows: SettlementRow[]) {
       .eq('junta_id', juntaId)
       .eq('mercadopago_payment_id', movement.sourceId)
       .maybeSingle();
-    const linkedTransactionId = isRefund ? due?.refund_transaction_id : due?.transaction_id;
+    const { data: batch } = await admin
+      .from('due_payment_batches')
+      .select('transaction_id, refund_transaction_id')
+      .eq('junta_id', juntaId)
+      .eq('mercadopago_payment_id', movement.sourceId)
+      .maybeSingle();
+    const linkedTransactionId = isRefund
+      ? due?.refund_transaction_id ?? batch?.refund_transaction_id
+      : due?.transaction_id ?? batch?.transaction_id;
 
     if (linkedTransactionId) {
       const { error } = await admin.from('transactions').update(transactionValues).eq('id', linkedTransactionId);

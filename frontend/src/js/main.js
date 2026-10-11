@@ -14,9 +14,11 @@ import { comunicacionesModule } from "./modules/comunicaciones.js";
 import { notificationsModule } from "./modules/notifications.js";
 import { paymentModule } from "./modules/payment.js";
 import { tourModule } from "./modules/tour.js";
+import { utils } from "./utils.js";
 
 
 // DOM references
+utils.installSafeHtmlPolicy();
 const bodyEl = document.body;
 const themeToggleBtn = document.getElementById("themeToggle");
 const themeToggleText = document.getElementById("themeToggleText");
