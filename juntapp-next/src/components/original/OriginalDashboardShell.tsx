@@ -49,6 +49,13 @@ export default function OriginalDashboardShell({ profile, junta, trialEndsAt, ch
     .map((item) => item.route === 'mi-pagina' && profile.role === 'vecino'
       ? { ...item, label: 'Web de la Junta', href: `/sitio/${junta?.slug}` }
       : { ...item, href: `/${item.route}` });
+  const navGroups = [
+    { label: 'Tu comunidad', items: visibleNavigation.filter((item) => ['inicio', 'socios'].includes(item.route)) },
+    { label: 'Gestión', items: visibleNavigation.filter((item) => ['tesoreria', 'consultas'].includes(item.route)) },
+    { label: 'Comunicación', items: visibleNavigation.filter((item) => ['comunicaciones', 'mi-pagina'].includes(item.route)) },
+  ].filter((group) => group.items.length);
+  const mobilePrimaryNavigation = visibleNavigation.filter((item) => ['inicio', 'socios', 'tesoreria', 'consultas'].includes(item.route));
+  const currentLabel = visibleNavigation.find((item) => item.route === currentRoute)?.label ?? 'JuntAPP';
 
   useEffect(() => {
     if (profile.role === 'dirigente' && junta?.subscription_plan === 'web' && pathname !== '/mi-pagina') router.replace('/mi-pagina');
@@ -129,7 +136,7 @@ export default function OriginalDashboardShell({ profile, junta, trialEndsAt, ch
           <div className="sidebar-profile-meta"><span id="userProfileRut">RUT: {profile.rut}</span><button id="btnLogoutBtn" onClick={logout}>Cerrar Sesión</button></div>
         </div>
         <nav className="sidebar-nav" aria-label="Navegación del panel">
-          {visibleNavigation.map((item) => <Link href={item.href} aria-label={item.label} title={item.label} className={`nav-item ${currentRoute === item.route ? 'active' : ''}`} id={`nav-${item.route}`} data-view={item.route} key={item.route}><NavIcon icon={item.icon}/><span>{item.label}</span>{item.route === 'comunicaciones' && unreadCount > 0 && <span className="badge badge-accent">{unreadCount}</span>}</Link>)}
+          {navGroups.map((group) => <div className="sidebar-nav-group" key={group.label}><span className="sidebar-nav-group-label">{group.label}</span>{group.items.map((item) => <Link href={item.href} aria-label={item.label} title={item.label} className={`nav-item ${currentRoute === item.route ? 'active' : ''}`} id={`nav-${item.route}`} data-view={item.route} key={item.route}><NavIcon icon={item.icon}/><span>{item.label}</span>{item.route === 'comunicaciones' && unreadCount > 0 && <span className="badge badge-accent">{unreadCount}</span>}</Link>)}</div>)}
         </nav>
         <div className="sidebar-footer">
           <button className="theme-btn notifications-bell-btn" id="bellToggle" onClick={() => setNotificationsOpen((value) => !value)}><span className="bell-icon-wrapper"><BellIcon />{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}</span><span>Notificaciones</span></button>
@@ -138,8 +145,9 @@ export default function OriginalDashboardShell({ profile, junta, trialEndsAt, ch
         </div>
       </aside>
       <main className="app-main-content" id="mainContent">
-        <header className="mobile-header"><div className="mobile-logo"><BrandMark size={36} /><span>Junt<strong>APP</strong></span></div><div className="mobile-header-actions"><button className="mobile-bell-btn" id="mobileBellToggle" onClick={() => setNotificationsOpen((value) => !value)} aria-label="Ver notificaciones"><BellIcon />{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}</button><button className="mobile-menu-toggle" type="button" aria-label={mobileMenuOpen?'Cerrar menú':'Abrir menú'} aria-expanded={mobileMenuOpen} onClick={()=>setMobileMenuOpen((value)=>!value)}><span/><span/><span/></button></div></header>
+        <header className="mobile-header"><div className="mobile-logo"><BrandMark size={36} /><span>Junt<strong>APP</strong></span></div><span className="mobile-current-section">{currentLabel}</span><div className="mobile-header-actions"><button className="mobile-bell-btn" id="mobileBellToggle" onClick={() => setNotificationsOpen((value) => !value)} aria-label="Ver notificaciones"><BellIcon />{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}</button><button className="mobile-menu-toggle" type="button" aria-label={mobileMenuOpen?'Cerrar menú':'Abrir menú'} aria-expanded={mobileMenuOpen} onClick={()=>setMobileMenuOpen((value)=>!value)}><span/><span/><span/></button></div></header>
         {mobileMenuOpen&&<div className="mobile-navigation-menu" role="navigation" aria-label="Menú principal">{visibleNavigation.map((item)=><Link href={item.href} className={`mobile-navigation-link ${currentRoute===item.route?'active':''}`} key={item.route} onClick={()=>setMobileMenuOpen(false)}><NavIcon icon={item.icon}/><span>{item.label}</span></Link>)}<div className="mobile-menu-secondary"><button type="button" className="logout" onClick={logout}>Cerrar sesión</button></div></div>}
+        {mobilePrimaryNavigation.length > 0 && <nav className="mobile-primary-nav" aria-label="Acciones principales">{mobilePrimaryNavigation.map((item) => <Link href={item.href} aria-current={currentRoute === item.route ? 'page' : undefined} className={currentRoute === item.route ? 'active' : ''} key={item.route}><NavIcon icon={item.icon} /><span>{item.label}</span></Link>)}</nav>}
         {trialEndsAt && (
           <div className="mx-4 mt-4 border-4 border-black bg-[#fff4a3] px-4 py-3 text-[#071b34] shadow-[4px_4px_0_#000] sm:mx-6">
             <p className="text-xs font-black uppercase">Período gratuito hasta {new Intl.DateTimeFormat('es-CL').format(new Date(trialEndsAt))}</p>
