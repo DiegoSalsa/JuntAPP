@@ -11,6 +11,9 @@
 \set inactive_household_id 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 \set dirigente_b_household_id 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 
+-- Fixture writes are administrative and occur only in the disposable DB.
+SELECT set_config('request.jwt.claim.role', 'service_role', false);
+
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 INSERT INTO auth.users (id, email, raw_user_meta_data, raw_app_meta_data, aud, role, email_confirmed_at, created_at, updated_at)
 VALUES (:'actor_id', 'due-test@example.invalid', '{"name":"Due Test"}', '{}', 'authenticated', 'authenticated', now(), now(), now())
@@ -27,7 +30,7 @@ INSERT INTO public.profiles (id, name, rut, address, email, role, cuota_status, 
 VALUES (:'actor_id', 'Due Test', '99.999.991-1', 'Pasaje Prueba 123', 'due-test@example.invalid', 'dirigente', 'pendiente', :'junta_id', :'household_id', 'active', 'tesorero')
 ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.households (id, junta_id, address, normalized_address, created_at)
-VALUES (:'new_household_id', :'junta_id', 'Pasaje Nuevo 456', 'pasaje nuevo 456', date_trunc('month', public.current_chile_date()) + interval '14 days')
+VALUES (:'new_household_id', :'junta_id', 'Pasaje Nuevo 456', 'pasaje nuevo 456', date_trunc('month', CURRENT_DATE) + interval '14 days')
 ON CONFLICT (id) DO NOTHING;
 UPDATE public.profiles
 SET junta_id=:'junta_id', household_id=:'household_id', role='dirigente', board_position='tesorero', membership_status='active', name='Due Test', rut='99.999.991-1', address='Pasaje Prueba 123', email='due-test@example.invalid'
@@ -59,14 +62,16 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET junta_id=excluded.junta_id, household_id=excluded.household_id, role=excluded.role, membership_status=excluded.membership_status, board_position=excluded.board_position;
 -- Deliberately make the owner a vecino for the negative authorization case:
 -- ownership alone must never grant roster or other-household history access.
+RESET ROLE;
 UPDATE public.juntas SET owner_id = :'neighbor_a_id' WHERE id = :'junta_id';
 
 SELECT set_config('request.jwt.claim.sub', :'actor_id', false);
 SELECT set_config('request.jwt.claim.role', 'service_role', false);
+SET ROLE service_role;
 
 DO $$
 DECLARE
-  p0 date := date_trunc('month', public.current_chile_date())::date;
+  p0 date := date_trunc('month', CURRENT_DATE)::date;
   periods date[] := ARRAY[p0, (p0 + interval '1 month')::date, (p0 + interval '2 months')::date];
   b1 uuid; b2 uuid; b3 uuid; b4 uuid; b5 uuid; b6 uuid; b7 uuid;
   tx bigint; reverse_tx bigint; claim jsonb;
@@ -139,6 +144,7 @@ BEGIN
 END $$;
 
 SELECT 'due payment PostgreSQL integration checks passed' AS result;
+RESET ROLE;
 
 -- Dashboard aggregate regressions. These run in the same disposable database
 -- when DUE_TEST_DATABASE_URL and psql are available.
@@ -150,30 +156,30 @@ ON CONFLICT (id) DO NOTHING;
 -- manual rows carry no provider fee, Mercado Pago rows carry their real fee,
 -- transfers are excluded from operating balance, and refunds are expenses.
 INSERT INTO public.transactions(junta_id, type, description, amount, date, created_by, source, accounting_kind, category, gross_amount, fee_amount, net_amount)
-SELECT '11111111-1111-4111-8111-111111111111'::uuid, 'ingreso', 'aggregate-fixture-' || i, 1000, date '2024-01-01' + (i % 365), '33333333-3333-4333-8333-333333333333'::uuid, 'manual', 'income', 'cuota_social', 1000, 10, 990
+SELECT '11111111-1111-4111-8111-111111111111'::uuid, 'ingreso', 'aggregate-fixture-' || i, 1000, date '2024-01-01' + (i % 365), '33333333-3333-4333-8333-333333333333'::uuid, 'manual', 'income', 'cuota_social', 1000, 0, 1000
 FROM generate_series(1, 1167) AS fixture(i);
-INSERT INTO public.transactions(junta_id, type, description, amount, date, created_by, source, accounting_kind, category, gross_amount, fee_amount, net_amount, provider, provider_transaction_id)
-SELECT '11111111-1111-4111-8111-111111111111'::uuid, 'ingreso', 'mp-income-fixture-' || i, 5000, date '2024-01-01' + i, '33333333-3333-4333-8333-333333333333'::uuid, 'mercadopago', 'income', 'cuota_social', 5000, 180, 4820, 'mercadopago', 'aggregate-mp-' || i
+INSERT INTO public.transactions(junta_id, type, description, amount, date, created_by, source, accounting_kind, category, gross_amount, fee_amount, net_amount, provider, provider_transaction_id, account_code)
+SELECT '11111111-1111-4111-8111-111111111111'::uuid, 'ingreso', 'mp-income-fixture-' || i, 5000, date '2024-01-01' + i, '33333333-3333-4333-8333-333333333333'::uuid, 'mercadopago', 'income', 'cuota_social', 5000, 180, 4820, 'mercadopago', 'aggregate-mp-' || i, 'mercadopago'
 FROM generate_series(1, 10) AS fixture(i);
 INSERT INTO public.transactions(junta_id, type, description, amount, date, created_by, source, accounting_kind, category, gross_amount, fee_amount, net_amount)
 SELECT '11111111-1111-4111-8111-111111111111'::uuid, 'egreso', 'expense-fixture-' || i, 2500, date '2024-01-01' + i, '33333333-3333-4333-8333-333333333333'::uuid, 'manual', 'expense', 'otros', 2500, 0, -2500
 FROM generate_series(1, 20) AS fixture(i);
-INSERT INTO public.transactions(junta_id, type, description, amount, date, created_by, source, accounting_kind, category, gross_amount, fee_amount, net_amount)
-SELECT '11111111-1111-4111-8111-111111111111'::uuid, 'egreso', 'transfer-fixture-' || i, 1000, date '2024-01-01' + i, '33333333-3333-4333-8333-333333333333'::uuid, 'bank_import', 'transfer', 'traspaso', 1000, 0, -1000
+INSERT INTO public.transactions(junta_id, type, description, amount, date, created_by, source, accounting_kind, category, gross_amount, fee_amount, net_amount, account_code, destination_account_code)
+SELECT '11111111-1111-4111-8111-111111111111'::uuid, 'egreso', 'transfer-fixture-' || i, 1000, date '2024-01-01' + i, '33333333-3333-4333-8333-333333333333'::uuid, 'bank_import', 'transfer', 'traspaso', 1000, 0, -1000, 'bank', 'cash'
 FROM generate_series(1, 5) AS fixture(i);
-INSERT INTO public.transactions(junta_id, type, description, amount, date, created_by, source, accounting_kind, category, gross_amount, fee_amount, net_amount, provider, provider_transaction_id)
-SELECT '11111111-1111-4111-8111-111111111111'::uuid, 'egreso', 'refund-fixture-' || i, 5000, date '2024-01-01' + i, '33333333-3333-4333-8333-333333333333'::uuid, 'mercadopago', 'expense', 'reembolso', 5000, 0, -5000, 'mercadopago', 'aggregate-refund-' || i
+INSERT INTO public.transactions(junta_id, type, description, amount, date, created_by, source, accounting_kind, category, gross_amount, fee_amount, net_amount, provider, provider_transaction_id, account_code)
+SELECT '11111111-1111-4111-8111-111111111111'::uuid, 'egreso', 'refund-fixture-' || i, 5000, date '2024-01-01' + i, '33333333-3333-4333-8333-333333333333'::uuid, 'mercadopago', 'expense', 'reembolso', 5000, 0, -5000, 'mercadopago', 'aggregate-refund-' || i, 'mercadopago'
 FROM generate_series(1, 3) AS fixture(i);
 INSERT INTO public.transactions(junta_id, type, description, amount, date, created_by, source, accounting_kind, category, gross_amount, fee_amount, net_amount)
 VALUES ('55555555-5555-4555-8555-555555555555'::uuid, 'ingreso', 'other-junta-fixture', 5000, date '2024-03-01', NULL, 'manual', 'income', 'cuota_social', 5000, 0, 5000);
 
 INSERT INTO public.member_dues (junta_id, profile_id, household_id, period, amount, status, payment_source)
-VALUES (:'junta_id', :'neighbor_a_id', :'neighbor_household_id', date_trunc('month', public.current_chile_date())::date, 10000, 'paid', 'manual')
-ON CONFLICT (profile_id, period) DO NOTHING;
+VALUES (:'junta_id', :'neighbor_a_id', :'neighbor_household_id', date_trunc('month', CURRENT_DATE)::date, 10000, 'paid', 'manual')
+ON CONFLICT (household_id, period) WHERE household_id IS NOT NULL DO NOTHING;
 INSERT INTO public.member_dues (junta_id, profile_id, household_id, period, amount, status, payment_source)
 SELECT :'junta_id', :'neighbor_a_id', :'neighbor_household_id', (date '1900-01-01' + ((fixture.i - 1) || ' months')::interval)::date, 10000, 'paid', 'manual'
 FROM generate_series(1, 1205) AS fixture(i)
-ON CONFLICT (profile_id, period) DO NOTHING;
+ON CONFLICT (household_id, period) WHERE household_id IS NOT NULL DO NOTHING;
 
 INSERT INTO public.website_pages(junta_id, template, published, content, theme, gallery)
 VALUES ('11111111-1111-4111-8111-111111111111'::uuid, 'comunidad', true, '{"public":"v1"}'::jsonb, '{"primary":"#000000"}'::jsonb, '[]'::jsonb)
@@ -208,7 +214,7 @@ BEGIN
   IF (SELECT balance FROM public.treasury_summary('55555555-5555-4555-8555-555555555555'::uuid, '2024-01-01', '2024-12-31', NULL, NULL)) <> 0 THEN
     RAISE EXCEPTION 'tenant boundary leaked another junta transaction';
   END IF;
-  SELECT count(*) INTO roster_count FROM public.junta_roster_page(date_trunc('month', public.current_chile_date())::date, NULL, NULL, NULL, NULL, 0, 50);
+  SELECT count(*) INTO roster_count FROM public.junta_roster_page(date_trunc('month', CURRENT_DATE)::date, NULL, NULL, NULL, NULL, 0, 50);
   IF roster_count < 1 THEN RAISE EXCEPTION 'roster page did not return the active member'; END IF;
   public_snapshot := public.get_public_website('due-test-junta');
   IF public_snapshot->'content'->>'public' <> 'v1' OR public_snapshot->'content'->>'public' = 'draft' THEN
@@ -232,7 +238,7 @@ SELECT set_config('request.jwt.claim.role', 'authenticated', false);
 DO $$
 DECLARE roster_count bigint; own_history bigint; cross_history bigint; history_total bigint;
 BEGIN
-  SELECT count(*) INTO roster_count FROM public.junta_roster_page(date_trunc('month', public.current_chile_date())::date, NULL, NULL, NULL, NULL, 0, 50);
+  SELECT count(*) INTO roster_count FROM public.junta_roster_page(date_trunc('month', CURRENT_DATE)::date, NULL, NULL, NULL, NULL, 0, 50);
   IF roster_count <> 0 THEN RAISE EXCEPTION 'neighbor enumerated roster PII'; END IF;
   SELECT count(*), max(total_count) INTO own_history, history_total FROM public.junta_due_history(ARRAY['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid], 0, 200);
   SELECT count(*) INTO cross_history FROM public.junta_due_history(ARRAY['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid, '22222222-2222-4222-8222-222222222222'::uuid], 0, 200);
@@ -246,7 +252,7 @@ SELECT set_config('request.jwt.claim.role', 'authenticated', false);
 DO $$
 DECLARE roster_count bigint;
 BEGIN
-  SELECT count(*) INTO roster_count FROM public.junta_roster_page(date_trunc('month', public.current_chile_date())::date, NULL, NULL, NULL, NULL, 0, 50);
+  SELECT count(*) INTO roster_count FROM public.junta_roster_page(date_trunc('month', CURRENT_DATE)::date, NULL, NULL, NULL, NULL, 0, 50);
   IF roster_count <> 1 THEN RAISE EXCEPTION 'dirigente B crossed junta boundary or lost roster access'; END IF;
   IF (SELECT count(*) FROM public.junta_due_history(ARRAY['22222222-2222-4222-8222-222222222222'::uuid, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid], 0, 200)) <> 0 THEN
     RAISE EXCEPTION 'dirigente B read another junta due history';
@@ -259,7 +265,7 @@ SELECT set_config('request.jwt.claim.sub', :'inactive_neighbor_a_id', false);
 SELECT set_config('request.jwt.claim.role', 'authenticated', false);
 DO $$
 BEGIN
-  IF (SELECT count(*) FROM public.junta_roster_page(date_trunc('month', public.current_chile_date())::date, NULL, NULL, NULL, NULL, 0, 50)) <> 0 THEN
+  IF (SELECT count(*) FROM public.junta_roster_page(date_trunc('month', CURRENT_DATE)::date, NULL, NULL, NULL, NULL, 0, 50)) <> 0 THEN
     RAISE EXCEPTION 'inactive neighbor accessed roster';
   END IF;
   IF (SELECT count(*) FROM public.junta_due_history(ARRAY['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid], 0, 200)) <> 0 THEN
@@ -273,7 +279,7 @@ SELECT set_config('request.jwt.claim.sub', '', false);
 SELECT set_config('request.jwt.claim.role', 'anon', false);
 DO $$
 BEGIN
-  BEGIN PERFORM count(*) FROM public.junta_roster_page(date_trunc('month', public.current_chile_date())::date, NULL, NULL, NULL, NULL, 0, 50); RAISE EXCEPTION 'anon roster RPC was executable'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  BEGIN PERFORM count(*) FROM public.junta_roster_page(date_trunc('month', CURRENT_DATE)::date, NULL, NULL, NULL, NULL, 0, 50); RAISE EXCEPTION 'anon roster RPC was executable'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   BEGIN PERFORM count(*) FROM public.junta_due_history(ARRAY['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid], 0, 200); RAISE EXCEPTION 'anon history RPC was executable'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $$;
 
@@ -283,7 +289,7 @@ SELECT set_config('request.jwt.claim.sub', '', false);
 SELECT set_config('request.jwt.claim.role', 'service_role', false);
 DO $$
 BEGIN
-  BEGIN PERFORM count(*) FROM public.junta_roster_page(date_trunc('month', public.current_chile_date())::date, NULL, NULL, NULL, NULL, 0, 50); RAISE EXCEPTION 'service_role roster RPC was executable'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  BEGIN PERFORM count(*) FROM public.junta_roster_page(date_trunc('month', CURRENT_DATE)::date, NULL, NULL, NULL, NULL, 0, 50); RAISE EXCEPTION 'service_role roster RPC was executable'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   BEGIN PERFORM count(*) FROM public.junta_due_history(ARRAY['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid], 0, 200); RAISE EXCEPTION 'service_role history RPC was executable'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $$;
 
