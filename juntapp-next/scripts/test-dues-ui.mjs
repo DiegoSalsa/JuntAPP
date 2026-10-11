@@ -58,6 +58,19 @@ if (serve) {
           if (await page.locator('.due-period-option input:checked').count() < 6) await option.check();
         }
         assert.equal(await page.getByRole('button', { name: 'Registrar 6 cuotas pagadas', exact: true }).count(), 1);
+        await page.locator('.modal-close').click();
+        await page.locator('#roster-search').fill('Vecino Nuevo');
+        await page.locator('select[name="role"]').selectOption('vecino');
+        await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+        await page.waitForURL(/q=Vecino\+Nuevo/);
+        assert.equal(await page.locator('.socio-card').count(), 1, 'la búsqueda y el filtro de rol deben combinarse en el servidor');
+        assert.match(await page.locator('.socio-card').innerText(), /Vecino Nuevo/i);
+        await page.goBack();
+        await page.waitForURL(/\/socios(?:\?|$)/);
+        assert.equal(new URL(page.url()).searchParams.get('q'), null, 'volver atrás debe limpiar q en la URL');
+        await page.reload();
+        assert.equal(await page.locator('#roster-search').inputValue(), '', 'la búsqueda debe reconstruirse desde la URL tras volver atrás');
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0, 'el padrón no debe desbordarse en móvil');
       }
       assert.deepEqual(errors, []); await context.close();
     }

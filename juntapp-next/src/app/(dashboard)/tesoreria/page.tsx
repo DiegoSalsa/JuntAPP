@@ -1,10 +1,13 @@
-import { currentChileBillingPeriod } from '@/lib/billing-period';
+import { currentChileBillingPeriodStart } from '@/lib/billing-period';
 import { createClient } from '@/lib/supabase/server';
 import type { Metadata } from 'next';
 import TesoreriaClient from '@/components/dashboard/tesoreria/TesoreriaClient';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { mercadoPagoConnectConfigured } from '@/lib/mercadopago-connect';
 import type { TreasuryStats } from '@/lib/treasury';
+
+type MonthlySummaryRow = { month_start: string; income: number | string | null; expenses: number | string | null; fees: number | string | null; balance: number | string | null; movement_count: number | string | null };
+type ExpenseBreakdownRow = { category: string; amount: number | string | null };
 
 export const metadata: Metadata = {
   title: 'Tesorería — JuntAPP',
@@ -36,16 +39,20 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
   if (transactionSource) transactionQuery = transactionQuery.eq('source', transactionSource);
   if (params.movFrom) transactionQuery = transactionQuery.gte('date', params.movFrom);
   if (params.movTo) transactionQuery = transactionQuery.lte('date', params.movTo);
-  const [{ data: transactions, count: transactionTotal }, { data: summaryRows, error: summaryError }] = await Promise.all([
+  const [{ data: transactions, count: transactionTotal }, { data: summaryRows, error: summaryError }, { data: monthlyRows, error: monthlyError }, { data: expenseRows, error: expenseError }] = await Promise.all([
     transactionQuery,
     supabase.rpc('treasury_summary', { p_junta_id: profile?.junta_id, p_from_date: params.movFrom ?? null, p_to_date: params.movTo ?? null, p_type: transactionType, p_source: transactionSource }),
+    supabase.rpc('treasury_monthly_summary', { p_junta_id: profile?.junta_id, p_from_date: params.movFrom ?? null, p_to_date: params.movTo ?? null, p_type: transactionType, p_source: transactionSource }),
+    supabase.rpc('treasury_expense_breakdown', { p_junta_id: profile?.junta_id, p_from_date: params.movFrom ?? null, p_to_date: params.movTo ?? null, p_type: transactionType, p_source: transactionSource }),
   ]);
   if (summaryError) console.error('[tesoreria] No fue posible obtener el resumen de caja', summaryError);
+  if (monthlyError) console.error('[tesoreria] No fue posible obtener el resumen mensual', monthlyError);
+  if (expenseError) console.error('[tesoreria] No fue posible obtener el desglose de egresos', expenseError);
   const summary = summaryRows?.[0];
-  const transactionSummary: TreasuryStats = { income: Number(summary?.income ?? 0), expenses: Number(summary?.expenses ?? 0), fees: Number(summary?.fees ?? 0), balance: Number(summary?.balance ?? 0) };
+  const transactionSummary: TreasuryStats | null = summaryError ? null : { income: Number(summary?.income ?? 0), expenses: Number(summary?.expenses ?? 0), fees: Number(summary?.fees ?? 0), balance: Number(summary?.balance ?? 0) };
 
   const junta = Array.isArray(profile?.juntas) ? profile.juntas[0] : profile?.juntas;
-  const period = `${currentChileBillingPeriod()}-01`;
+  const period = currentChileBillingPeriodStart();
   const { data: currentDue } = await supabase
     .from('member_dues')
     .select('*')
@@ -78,7 +85,8 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
     admin.from('treasury_sync_runs').select('completed_at, imported_count').eq('junta_id', profile.junta_id).eq('status', 'completed').order('completed_at', { ascending: false }).limit(1).maybeSingle(),
     admin.from('treasury_sync_runs').select('id').eq('junta_id', profile.junta_id).in('status', ['pending', 'processing']).limit(1).maybeSingle(),
   ]) : [{ data: null }, { data: null }];
-  const { data: dueCounts } = await supabase.rpc('junta_due_household_counts', { p_junta_id: profile?.junta_id, p_period: period });
+  const { data: dueCounts, error: dueCountsError } = await supabase.rpc('junta_due_household_counts', { p_junta_id: profile?.junta_id, p_period: period });
+  if (dueCountsError) console.error('[tesoreria] No fue posible obtener el conteo de domicilios', dueCountsError);
   const householdCount = Number(dueCounts?.[0]?.total_households ?? 0);
   const paidHouseholdCount = Number(dueCounts?.[0]?.paid_households ?? 0);
 
@@ -102,6 +110,9 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
     <TesoreriaClient
       transactions={transactions || []}
       transactionSummary={transactionSummary}
+      monthlySummary={(monthlyRows as MonthlySummaryRow[] ?? []).map((row) => ({ month_start: String(row.month_start), income: Number(row.income ?? 0), expenses: Number(row.expenses ?? 0), fees: Number(row.fees ?? 0), balance: Number(row.balance ?? 0), movement_count: Number(row.movement_count ?? 0) }))}
+      expenseBreakdown={(expenseRows as ExpenseBreakdownRow[] ?? []).map((row) => ({ category: String(row.category), amount: Number(row.amount ?? 0) }))}
+      treasuryAggregateError={summaryError || monthlyError || expenseError ? 'No fue posible cargar los reportes de tesorería. Intenta nuevamente.' : null}
       transactionPage={transactionPage}
       transactionPageSize={transactionPageSize}
       transactionTotal={transactionTotal ?? 0}
@@ -128,6 +139,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
       }}
       totalHouseholds={householdCount ?? 0}
       paidHouseholds={paidHouseholdCount ?? 0}
+      dueCountError={dueCountsError ? 'No fue posible consultar las cuotas de los domicilios.' : null}
       now={new Date().toISOString()}
     />
   );

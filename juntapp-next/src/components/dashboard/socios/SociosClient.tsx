@@ -14,8 +14,7 @@ type BoardModalMode = 'assign' | 'change' | 'remove';
 type ManualAction = 'paid' | 'pending';
 type DueHistoryItem = { household_id: string; period: string; status: string; amount: number; payment_source?: string | null; mercadopago_payment_id?: string | null; payment_batch_id?: string | null };
 
-export default function SociosClient({ socios, currentProfile, junta, applications, householdCreatedAtById, dueHistory, totalSocios, page, pageSize, initialSearch, initialFilters }: { socios: Profile[]; currentProfile: Profile; junta: Junta; applications: MembershipApplication[]; householdCreatedAtById: Record<string, string>; dueHistory: DueHistoryItem[]; totalSocios: number; page: number; pageSize: number; initialSearch: string; initialFilters: { role: string; position: string; due: string } }) {
-  const [search] = useState(initialSearch);
+export default function SociosClient({ socios, currentProfile, junta, applications, householdCreatedAtById, dueHistory, totalSocios, page, pageSize, initialSearch, initialFilters, hasSecretary }: { socios: Profile[]; currentProfile: Profile; junta: Junta; applications: MembershipApplication[]; householdCreatedAtById: Record<string, string>; dueHistory: DueHistoryItem[]; totalSocios: number; page: number; pageSize: number; initialSearch: string; initialFilters: { role: string; position: string; due: string }; hasSecretary: boolean }) {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState('');
@@ -47,10 +46,10 @@ export default function SociosClient({ socios, currentProfile, junta, applicatio
   const isDirigente = currentProfile.role === 'dirigente';
   const isPresident = currentProfile.role === 'dirigente' && currentProfile.board_position === 'presidente';
   const isOwner = junta.owner_id === currentProfile.id;
-  const hasSecretary = socios.some((socio) => socio.role === 'dirigente' && socio.board_position === 'secretario');
   const canReviewApplications = currentProfile.board_position === 'secretario'
     || (!hasSecretary && (currentProfile.board_position === 'presidente' || isOwner));
-  const filtered = search === initialSearch ? socios : socios.filter((s) => [s.name, s.rut, s.address].some((value) => value.toLowerCase().includes(search.toLowerCase())));
+  const search = currentSearchParams.get('q') ?? initialSearch;
+  const filtered = socios;
   const totalPages = Math.max(1, Math.ceil(totalSocios / pageSize));
 
   function applyRosterFilters(event: React.FormEvent<HTMLFormElement>) {
@@ -289,7 +288,7 @@ export default function SociosClient({ socios, currentProfile, junta, applicatio
         <div className="board-position-panel shadow-box"><div><span className="view-subtitle">Tu función en la directiva</span><h3 className="card-title">Cargo: {boardPositionLabel(currentProfile.board_position)}</h3><p>{isPresident ? 'Presidencia asigna Secretario, Tesorero y Dirigente desde el padrón. La Presidencia no se transfiere aquí.' : 'Los cargos de la directiva los administra Presidencia. Presidente, Secretario y Tesorero son únicos.'}</p></div></div>
         {isOwner && <div className="board-position-panel shadow-box"><div><span className="view-subtitle">Plan de la junta</span><h3 className="card-title">Suscripción mensual activa</h3><p>{new Intl.NumberFormat("es-CL").format(junta.subscription_price)} CLP al mes, IVA incluido. Mercado Pago gestiona la renovación automática.</p></div><div className="board-position-control"><button type="button" className="btn btn-secondary danger-action" disabled={cancellingSubscription} onClick={() => void cancelSubscription()}>{cancellingSubscription ? 'Cancelando…' : 'Cancelar suscripción'}</button>{subscriptionMessage && <span className="form-help">{subscriptionMessage}</span>}</div></div>}
                 <form className="roster-filters" onSubmit={applyRosterFilters} aria-label="Filtros del padrón">
-          <div className="search-input-wrapper"><label className="sr-only" htmlFor="roster-search">Buscar socio</label><span className="search-icon" aria-hidden="true">⌕</span><input id="roster-search" name="q" defaultValue={initialSearch} className="form-input search-input" placeholder="Buscar socio por nombre, dirección o RUT…" /></div>
+          <div className="search-input-wrapper"><label className="sr-only" htmlFor="roster-search">Buscar socio</label><span className="search-icon" aria-hidden="true">⌕</span><input key={search} id="roster-search" name="q" defaultValue={search} className="form-input search-input" placeholder="Buscar socio por nombre, dirección o RUT…" /></div>
           <select name="role" className="form-input" defaultValue={initialFilters.role} aria-label="Filtrar por tipo"><option value="">Todos los tipos</option><option value="vecino">Vecinos</option><option value="dirigente">Directiva</option></select>
           <select name="position" className="form-input" defaultValue={initialFilters.position} aria-label="Filtrar por cargo"><option value="">Todos los cargos</option>{ASSIGNABLE_BOARD_POSITIONS.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}<option value="presidente">Presidente</option></select>
           <select name="due" className="form-input" defaultValue={initialFilters.due} aria-label="Filtrar por cuota"><option value="">Todas las cuotas</option><option value="al_dia">Al día</option><option value="pendiente">Pendientes</option></select>

@@ -19,7 +19,7 @@
     "audit:public": "node scripts/audit-public-pages.mjs",
     "test:board-role": "node --experimental-strip-types scripts/test-board-role-management.mjs",
     "test:treasury": "node --experimental-strip-types scripts/test-treasury-reconciliation.mjs",
-    "test:dashboard-audit": "node scripts/test-dashboard-audit.mjs",
+    "test:dashboard-audit": "node --experimental-strip-types scripts/test-dashboard-audit.mjs",
     "test:dues": "node scripts/test-due-payment-batches.mjs",
     "test:dues:ui": "node scripts/test-dues-ui.mjs",
     "test:dues:db": "node scripts/test-due-payment-batches-db.mjs",

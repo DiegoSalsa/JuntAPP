@@ -14,6 +14,16 @@ export type TreasuryStats = {
   balance: number;
 };
 
+export type TreasuryMonthlySummary = TreasuryStats & {
+  month_start: string;
+  movement_count: number;
+};
+
+export type TreasuryExpenseBreakdown = {
+  category: string;
+  amount: number;
+};
+
 /** Uses the same accounting semantics in Inicio, Tesorería and reports. */
 export function calculateTreasuryStats(transactions: TreasuryTransaction[]): TreasuryStats {
   return transactions.reduce<TreasuryStats>((summary, transaction) => {

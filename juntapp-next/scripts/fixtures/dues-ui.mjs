@@ -53,6 +53,33 @@ export async function startFixture({ serve = false } = {}) {
       res.end(JSON.stringify({ id: current.id, email: current.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {} })); return;
     }
     if (url.pathname.startsWith('/storage/v1/')) { res.end('[]'); return; }
+    if (url.pathname.startsWith('/rest/v1/rpc/')) {
+      if (!current && bearer !== 'mock-service-role') { res.writeHead(401).end('{"message":"Invalid JWT"}'); return; }
+      const rpc = url.pathname.split('/').pop();
+      let raw = ''; for await (const chunk of req) raw += chunk;
+      const input = raw ? JSON.parse(raw) : {};
+      if (rpc === 'junta_roster_page') {
+        const search = String(input.p_search ?? '').toLowerCase();
+        const due = String(input.p_due ?? '');
+        let rows = profiles.slice();
+        if (input.p_role) rows = rows.filter((profile) => profile.role === input.p_role);
+        if (input.p_position) rows = rows.filter((profile) => profile.board_position === input.p_position);
+        if (search) rows = rows.filter((profile) => [profile.name, profile.rut, profile.address].some((value) => value.toLowerCase().includes(search)));
+        if (due === 'al_dia') rows = rows.filter((profile) => dues.some((item) => item.household_id === profile.household_id && item.status === 'paid' && item.period === input.p_period));
+        if (due === 'pendiente') rows = rows.filter((profile) => !dues.some((item) => item.household_id === profile.household_id && item.status === 'paid' && item.period === input.p_period));
+        const offset = Number(input.p_offset ?? 0); const limit = Number(input.p_limit ?? 50); const total = rows.length;
+        res.end(JSON.stringify(rows.slice(offset, offset + limit).map((profile) => ({ ...profile, cuota_status: dues.some((item) => item.household_id === profile.household_id && item.status === 'paid' && item.period === input.p_period) ? 'al_dia' : 'pendiente', household_created_at: households.find((household) => household.id === profile.household_id)?.created_at ?? null, total_count: total })))); return;
+      }
+      if (rpc === 'junta_due_history') { const ids = input.p_household_ids ?? []; res.end(JSON.stringify(dues.filter((item) => ids.includes(item.household_id)))); return; }
+      if (rpc === 'junta_has_secretary') { res.end('false'); return; }
+      if (rpc === 'junta_due_household_counts') {
+        const total = households.length; const paid = households.filter((household) => dues.some((item) => item.household_id === household.id && item.period === input.p_period && item.status === 'paid')).length;
+        res.end(JSON.stringify([{ total_households: total, paid_households: paid }])); return;
+      }
+      if (rpc === 'treasury_summary') { res.end(JSON.stringify([{ income: 0, expenses: 0, fees: 0, balance: 0 }])); return; }
+      if (rpc === 'treasury_monthly_summary' || rpc === 'treasury_expense_breakdown') { res.end('[]'); return; }
+      res.end('[]'); return;
+    }
     if (url.pathname.startsWith('/rest/v1/')) {
       if (!current && bearer !== 'mock-service-role') { res.writeHead(401).end('{"message":"Invalid JWT"}'); return; }
       const table = url.pathname.split('/').pop();

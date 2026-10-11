@@ -1,4 +1,4 @@
-import { currentChileBillingPeriod } from '@/lib/billing-period';
+import { currentChileBillingPeriodStart } from '@/lib/billing-period';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -22,19 +22,20 @@ export default async function InicioPage() {
   const { data: { user } } = await supabase.auth.getUser();
   const { data: profile } = await supabase.from('profiles').select('*, juntas(name)').eq('id', user!.id).single();
   const juntaId = profile?.junta_id;
-  const period = `${currentChileBillingPeriod()}-01`;
-  const [{ count: sociosCount }, { data: dueCounts }, { data: myDue }, { data: treasurySummary, error: treasuryError }, { data: announcements }, { data: activePoll }] = await Promise.all([
+  const period = currentChileBillingPeriodStart();
+  const [{ count: sociosCount }, { data: dueCounts, error: dueCountsError }, { data: myDue }, { data: treasurySummary, error: treasuryError }, { data: announcements }, { data: activePoll }] = await Promise.all([
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('junta_id', juntaId),
-    supabase.rpc('junta_due_household_counts', { p_junta_id: juntaId, p_period: `${period}-01` }),
+    supabase.rpc('junta_due_household_counts', { p_junta_id: juntaId, p_period: period }),
     supabase.from('member_dues').select('household_id').eq('junta_id', juntaId).eq('household_id', profile?.household_id).eq('period', period).eq('status', 'paid').maybeSingle(),
     supabase.rpc('treasury_summary', { p_junta_id: juntaId, p_from_date: null, p_to_date: null, p_type: null, p_source: null }),
     supabase.from('announcements').select('*').eq('junta_id', juntaId).order('created_at', { ascending: false }).limit(3),
     supabase.from('polls').select('title').eq('junta_id', juntaId).eq('active', true).maybeSingle(),
   ]);
   if (treasuryError) console.error('[inicio] No fue posible obtener el resumen de caja', treasuryError);
+  if (dueCountsError) console.error('[inicio] No fue posible obtener el conteo de domicilios', dueCountsError);
   const treasuryRow = treasurySummary?.[0];
-  const treasury = { income: Number(treasuryRow?.income ?? 0), expenses: Number(treasuryRow?.expenses ?? 0), fees: Number(treasuryRow?.fees ?? 0), balance: Number(treasuryRow?.balance ?? 0) };
-  const paid = Number(dueCounts?.[0]?.paid_households ?? 0);
+  const treasury = treasuryError ? null : { income: Number(treasuryRow?.income ?? 0), expenses: Number(treasuryRow?.expenses ?? 0), fees: Number(treasuryRow?.fees ?? 0), balance: Number(treasuryRow?.balance ?? 0) };
+  const paid = dueCountsError ? null : Number(dueCounts?.[0]?.paid_households ?? 0);
   const myDuePaid = Boolean(myDue);
   const junta = Array.isArray(profile?.juntas) ? profile.juntas[0]?.name : profile?.juntas?.name;
   const month = new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric' }).format(new Date());
@@ -50,8 +51,8 @@ export default async function InicioPage() {
       <InicioAlerts urgent={urgent?.content} isDirigente={profile?.role === 'dirigente'} />
 
       <div className="stats-grid">
-        <div className="stat-card note-yellow-v3"><div className="stat-icon income"><Icon type="money" /></div><div className="stat-details"><span className="stat-label">Saldo registrado</span><h3 className="stat-value">{formatCurrency(treasury.balance)}</h3><span className="stat-trend success">✔ Transferencias internas excluidas</span></div></div>
-        <div className="stat-card note-blue-v3"><div className="stat-icon members"><Icon type="members" /></div><div className="stat-details"><span className="stat-label">Socios Registrados</span><h3 className="stat-value">{sociosCount ?? 0}</h3><span className="stat-trend">{paid} domicilios con cuota al día</span></div></div>
+        <div className="stat-card note-yellow-v3"><div className="stat-icon income"><Icon type="money" /></div><div className="stat-details"><span className="stat-label">Saldo registrado</span><h3 className={`stat-value${treasuryError ? ' text-danger' : ''}`}>{treasury ? formatCurrency(treasury.balance) : 'No disponible'}</h3><span className="stat-trend">{treasuryError ? 'No fue posible consultar la caja.' : '✔ Transferencias internas excluidas'}</span></div></div>
+        <div className="stat-card note-blue-v3"><div className="stat-icon members"><Icon type="members" /></div><div className="stat-details"><span className="stat-label">Socios Registrados</span><h3 className="stat-value">{sociosCount ?? 0}</h3><span className="stat-trend">{dueCountsError ? 'No fue posible consultar las cuotas.' : `${paid} domicilios con cuota al día`}</span></div></div>
         <Link className="stat-card select-action note-orange-v3" href="/consultas"><div className="stat-icon voting"><Icon type="vote" /></div><div className="stat-details"><span className="stat-label">Consulta Activa</span><h3 className="stat-value text-accent">{activePoll?.title ?? 'Sin consulta activa'}</h3><span className="stat-trend accent">{activePoll ? 'Participa ahora' : 'Te avisaremos de la próxima'}</span></div></Link>
         <div className="stat-card note-green-v3"><div className="stat-icon event"><Icon type="calendar" /></div><div className="stat-details"><span className="stat-label">Cuota de mi Domicilio</span><h3 className="stat-value">{myDuePaid ? 'Al Día' : 'Pendiente'}</h3><span className="stat-trend">{profile?.address}</span></div></div>
       </div>

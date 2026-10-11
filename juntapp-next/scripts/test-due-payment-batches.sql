@@ -104,3 +104,60 @@ BEGIN
 END $$;
 
 SELECT 'due payment PostgreSQL integration checks passed' AS result;
+
+-- Dashboard aggregate regressions. These run in the same disposable database
+-- when DUE_TEST_DATABASE_URL and psql are available.
+INSERT INTO public.juntas (id, name, slug, region, invite_code, subscription_status)
+VALUES ('55555555-5555-4555-8555-555555555555'::uuid, 'Junta Aislada Dos', 'due-test-junta-dos', 'Metropolitana', 'DUE555', 'authorized')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.transactions(junta_id, type, description, amount, date, created_by, source, accounting_kind, category, gross_amount, fee_amount, net_amount)
+SELECT '11111111-1111-4111-8111-111111111111'::uuid, 'ingreso', 'aggregate-fixture-' || i, 1000, date '2024-01-01' + (i % 365), '33333333-3333-4333-8333-333333333333'::uuid, 'manual', 'income', 'cuota_social', 1000, 10, 990
+FROM generate_series(1, 1205) AS fixture(i);
+INSERT INTO public.transactions(junta_id, type, description, amount, date, created_by, source, accounting_kind, category, gross_amount, fee_amount, net_amount)
+VALUES ('55555555-5555-4555-8555-555555555555'::uuid, 'ingreso', 'other-junta-fixture', 5000, date '2024-03-01', NULL, 'manual', 'income', 'cuota_social', 5000, 0, 5000);
+
+INSERT INTO public.website_pages(junta_id, template, published, content, theme, gallery)
+VALUES ('11111111-1111-4111-8111-111111111111'::uuid, 'comunidad', true, '{"public":"v1"}'::jsonb, '{"primary":"#000000"}'::jsonb, '[]'::jsonb)
+ON CONFLICT (junta_id) DO NOTHING;
+UPDATE public.website_pages
+SET published = true, content = '{"public":"v1"}'::jsonb, draft_content = '{"public":"draft"}'::jsonb
+WHERE junta_id = '11111111-1111-4111-8111-111111111111'::uuid;
+
+SELECT set_config('request.jwt.claim.role', 'authenticated', false);
+DO $$
+DECLARE
+  total_movements bigint;
+  total_income numeric;
+  total_expenses numeric;
+  total_fees numeric;
+  total_balance numeric;
+  roster_count bigint;
+  public_snapshot jsonb;
+BEGIN
+  SELECT COALESCE(sum(movement_count), 0), COALESCE(sum(income), 0), COALESCE(sum(expenses), 0), COALESCE(sum(fees), 0), COALESCE(sum(balance), 0)
+  INTO total_movements, total_income, total_expenses, total_fees, total_balance
+  FROM public.treasury_monthly_summary('11111111-1111-4111-8111-111111111111'::uuid, '2024-01-01', '2024-12-31', 'ingreso', 'manual');
+  IF total_movements <> 1205 OR total_income <> 1205000 OR total_expenses <> 12050 OR total_fees <> 12050 OR total_balance <> 1192950 THEN
+    RAISE EXCEPTION 'monthly aggregate mismatch: %, %, %, %, %', total_movements, total_income, total_expenses, total_fees, total_balance;
+  END IF;
+  IF (SELECT amount FROM public.treasury_expense_breakdown('11111111-1111-4111-8111-111111111111'::uuid, '2024-01-01', '2024-12-31', 'ingreso', 'manual') WHERE category = 'comisiones') <> 12050 THEN
+    RAISE EXCEPTION 'expense breakdown did not include all commissions';
+  END IF;
+  IF (SELECT balance FROM public.treasury_summary('55555555-5555-4555-8555-555555555555'::uuid, '2024-01-01', '2024-12-31', NULL, NULL)) <> 0 THEN
+    RAISE EXCEPTION 'tenant boundary leaked another junta transaction';
+  END IF;
+  SELECT count(*) INTO roster_count FROM public.junta_roster_page(date_trunc('month', public.current_chile_date())::date, NULL, NULL, NULL, NULL, 0, 50);
+  IF roster_count < 1 THEN RAISE EXCEPTION 'roster page did not return the active member'; END IF;
+  public_snapshot := public.get_public_website('due-test-junta');
+  IF public_snapshot->'content'->>'public' <> 'v1' OR public_snapshot->'content'->>'public' = 'draft' THEN
+    RAISE EXCEPTION 'public website exposed the draft snapshot';
+  END IF;
+  IF has_table_privilege('anon', 'public.website_pages', 'SELECT') THEN
+    RAISE EXCEPTION 'anon can read website_pages directly';
+  END IF;
+  IF NOT has_function_privilege('authenticated', 'public.treasury_monthly_summary(uuid,date,date,text,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'authenticated role cannot execute monthly summary';
+  END IF;
+END $$;
+
+SELECT 'dashboard aggregate PostgreSQL integration checks passed' AS result;
