@@ -136,6 +136,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
       }}
       totalHouseholds={householdCount ?? 0}
       paidHouseholds={paidHouseholdCount ?? 0}
+      now={new Date().toISOString()}
     />
   );
 }

@@ -86,9 +86,18 @@
 .due-period-card.selected { border-color: var(--primary-color, #1d4ed8); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color, #1d4ed8) 18%, transparent); }
 .due-period-card.paid { background: #f0fdf4; border-color: #86efac; }
 .due-period-card.pending { background: #fff7ed; border-color: #fdba74; }
-.due-period-label { font-weight: 700; text-transform: capitalize; }
+.due-period-label { font-weight: 700; }
 .due-period-status { font-size: 0.82rem; color: #5b6472; }
 .due-payment-summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
+.due-calendar-controls { align-items: center; }
+.due-calendar-controls .form-input { width: auto; min-width: 130px; }
+.selected-period-summary { display: grid; gap: 5px; margin-top: 16px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--primary-subtle); color: var(--text); font-size: .84rem; }
+.selected-period-summary span { color: var(--text-secondary); }
+.due-period-option { display: flex; align-items: flex-start; gap: 10px; min-height: 58px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: #fff; cursor: pointer; }
+.due-period-option input { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--primary); }
+.due-period-option span { display: grid; gap: 3px; }
+.due-period-option small { color: var(--text-secondary); }
+.due-period-batch-option { background: #fff8f2; border-color: #f0b27b; }
 @media (max-width: 520px) { .due-period-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .due-payment-summary > * { width: 100%; } }
 .treasury-sync-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; color: var(--text-secondary); font-size: .8rem; }
 .visible { display: block !important; }
@@ -144,6 +153,11 @@
 .payment-approved-message > span { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 50%; background: var(--success); color: white; font-size: 1.7rem; font-weight: 900; }
 /* Fixed modals must use the viewport, not the animated view as containing block. */
 .original-dashboard-root .app-view.active { animation: none !important; transform: none !important; }
+.original-dashboard-root .modal-dialog { max-height: calc(100dvh - 24px) !important; overflow: hidden !important; }
+.original-dashboard-root .modal-content { min-height: 0; max-height: 100%; overflow: hidden; }
+.original-dashboard-root .modal-body { min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; }
+.original-dashboard-root .modal-header { flex: 0 0 auto; }
+.original-dashboard-root .modal-footer { flex: 0 0 auto; }
 @media (max-width: 850px) {
   .board-position-panel { align-items: stretch; flex-direction: column; }
   .board-position-control { width: 100%; }

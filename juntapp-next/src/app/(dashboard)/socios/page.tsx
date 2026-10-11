@@ -57,7 +57,7 @@ export default async function SociosPage({ searchParams }: { searchParams: Promi
   const roster: Profile[] = (isDirigente ? (socios ?? []) : (boardContacts ?? [])) as Profile[];
   const { data: dueHistory } = await supabase
     .from('member_dues')
-    .select('household_id, period, status, amount, payment_source, mercadopago_payment_id')
+    .select('household_id, period, status, amount, payment_source, mercadopago_payment_id, payment_batch_id')
     .eq('junta_id', profile?.junta_id)
     .order('period', { ascending: false });
   const { data: households } = await supabase
@@ -88,7 +88,7 @@ export default async function SociosPage({ searchParams }: { searchParams: Promi
       junta={(Array.isArray(profile?.juntas) ? profile.juntas[0] : profile?.juntas)!}
       applications={applications ?? []}
       householdCreatedAtById={householdCreatedAtById}
-      dueHistory={(dueHistory ?? []).map((due) => ({ household_id: due.household_id, period: due.period, status: due.status, amount: Number(due.amount), payment_source: due.payment_source, mercadopago_payment_id: due.mercadopago_payment_id }))}
+      dueHistory={(dueHistory ?? []).map((due) => ({ household_id: due.household_id, period: due.period, status: due.status, amount: Number(due.amount), payment_source: due.payment_source, mercadopago_payment_id: due.mercadopago_payment_id, payment_batch_id: due.payment_batch_id }))}
       totalSocios={totalSocios ?? 0}
       page={page}
       pageSize={pageSize}

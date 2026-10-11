@@ -12,7 +12,7 @@ import ExpenseChart from './ExpenseChart';
 
 type PaymentBatchSummary = { id: string; total_amount: number | string; status: string; payment_source: string | null; mercadopago_payment_id: string | null; created_at: string; confirmed_at: string | null; due_payment_batch_items?: { period: string; amount: number | string }[] };
 
-export default function TesoreriaClient({ transactions, transactionSummary, transactionPage, transactionPageSize, transactionTotal, transactionFilters, documents, currentProfile, junta, currentDue, dueHistory, householdCreatedAt, paymentBatches, paymentReturn, connectionReturn, mercadoPagoConnection, treasurySyncStatus, totalHouseholds, paidHouseholds }: { transactions: Transaction[]; transactionSummary: TreasuryStats; transactionPage: number; transactionPageSize: number; transactionTotal: number; transactionFilters: { type: string; source: string; from: string; to: string }; documents: TreasuryDocument[]; currentProfile: Profile; junta: Junta; currentDue: MemberDue | null; dueHistory: MemberDue[]; householdCreatedAt: string | null; paymentBatches: PaymentBatchSummary[]; paymentReturn: string | null; connectionReturn: string | null; mercadoPagoConnection: MercadoPagoConnectionSummary; treasurySyncStatus: TreasurySyncStatus; totalHouseholds: number; paidHouseholds: number }) {
+export default function TesoreriaClient({ transactions, transactionSummary, transactionPage, transactionPageSize, transactionTotal, transactionFilters, documents, currentProfile, junta, currentDue, dueHistory, householdCreatedAt, paymentBatches, paymentReturn, connectionReturn, mercadoPagoConnection, treasurySyncStatus, totalHouseholds, paidHouseholds, now }: { transactions: Transaction[]; transactionSummary: TreasuryStats; transactionPage: number; transactionPageSize: number; transactionTotal: number; transactionFilters: { type: string; source: string; from: string; to: string }; documents: TreasuryDocument[]; currentProfile: Profile; junta: Junta; currentDue: MemberDue | null; dueHistory: MemberDue[]; householdCreatedAt: string | null; paymentBatches: PaymentBatchSummary[]; paymentReturn: string | null; connectionReturn: string | null; mercadoPagoConnection: MercadoPagoConnectionSummary; treasurySyncStatus: TreasurySyncStatus; totalHouseholds: number; paidHouseholds: number; now: string }) {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [documentLoading, setDocumentLoading] = useState(false);
@@ -28,6 +28,7 @@ export default function TesoreriaClient({ transactions, transactionSummary, tran
   const [syncMessage, setSyncMessage] = useState('');
   const [selectedPeriods, setSelectedPeriods] = useState<string[]>(() => currentDue?.status === 'paid' ? [] : [`${currentChileBillingPeriod()}-01`]);
   const [calendarYear, setCalendarYear] = useState(() => Number(currentChileBillingPeriod().slice(0, 4)));
+  const nowMs = Date.parse(now);
   const router = useRouter();
   const pathname = usePathname();
   const currentSearchParams = useSearchParams();
@@ -103,7 +104,7 @@ export default function TesoreriaClient({ transactions, transactionSummary, tran
   }, [currentPeriodDate, dueHistory, householdCreatedAt]);
   const maxSelectableMs = useMemo(() => {
     const maximum = new Date(currentPeriodDate);
-    maximum.setUTCMonth(maximum.getUTCMonth() + 12);
+    maximum.setUTCMonth(maximum.getUTCMonth() + 11);
     return maximum.getTime();
   }, [currentPeriodDate]);
   const isSelectablePeriod = (period: string) => {
@@ -120,9 +121,14 @@ export default function TesoreriaClient({ transactions, transactionSummary, tran
       return { period, due: dueByPeriod.get(period) ?? null, selectable };
     });
   }, [calendarYear, dueByPeriod, earliestSelectableMs, maxSelectableMs]);
+  const selectedOutsideVisibleYear = selectedPeriods.filter((period) => !calendarPeriods.some((item) => item.period === period));
+  const selectedPeriodLabels = selectedPeriods.map((period) => new Intl.DateTimeFormat('es-CL', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(period)));
+  const isExpiredPreference = (due: MemberDue | null | undefined) => due?.status === 'preference_created'
+    && Boolean(due.checkout_expires_at)
+    && new Date(due.checkout_expires_at as string).getTime() <= nowMs;
   const payableSelectedPeriods = selectedPeriods.filter((period) => {
     const due = dueByPeriod.get(period);
-    return isSelectablePeriod(period) && (!due || ['pending', 'rejected', 'refunded'].includes(due.status));
+    return isSelectablePeriod(period) && (!due || ['pending', 'rejected', 'refunded'].includes(due.status) || isExpiredPreference(due));
   });
   async function startDuePayment() {
     setPaymentLoading(true); setPaymentError('');
@@ -152,12 +158,13 @@ export default function TesoreriaClient({ transactions, transactionSummary, tran
     <header className="view-header"><div><span className="view-subtitle">Transparencia y Cuentas Claras</span><h2 className="view-title">Tesorería Transparente</h2></div><div className="view-actions"><button className="tour-help-btn"><span>?</span><span>Guía</span></button><button className="btn btn-ghost" onClick={() => setReportOpen(true)}>Generar Reporte Mensual</button>{isDirigente && <button className="btn btn-primary" onClick={() => setShowModal(true)}>＋ Registrar Movimiento</button>}</div></header>
 
     <div className="card shadow-box mb-24" aria-labelledby="due-calendar-title">
-      <div className="card-header"><div><span className="view-subtitle">Historial por domicilio</span><h3 id="due-calendar-title" className="card-title">Cuotas mensuales</h3><p className="card-subtitle">Selecciona uno o varios períodos pendientes. Un solo checkout cubrirá todos los seleccionados.</p></div><span className="verification-badge manual">{payableSelectedPeriods.length} seleccionados</span></div>
-      <div className="view-actions mb-16"><label className="form-label" htmlFor="due-calendar-year">Año</label><select id="due-calendar-year" className="form-input" value={calendarYear} onChange={(event) => setCalendarYear(Number(event.target.value))}>{yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}</select></div>
+      <div className="card-header"><div><span className="view-subtitle">Historial por domicilio</span><h3 id="due-calendar-title" className="card-title">Cuotas mensuales</h3><p className="card-subtitle">Selecciona uno o varios períodos pendientes. Un solo checkout cubrirá todos los seleccionados.</p></div><span className="verification-badge manual">{payableSelectedPeriods.length} {payableSelectedPeriods.length === 1 ? 'seleccionado' : 'seleccionados'}</span></div>
+      <div className="view-actions mb-16 due-calendar-controls"><label className="form-label" htmlFor="due-calendar-year">Año visible</label><select id="due-calendar-year" className="form-input" value={calendarYear} onChange={(event) => setCalendarYear(Number(event.target.value))}>{yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}</select>{selectedOutsideVisibleYear.length > 0 && <span className="form-help">También seleccionados en {selectedOutsideVisibleYear.map((period) => period.slice(0, 4)).filter((year, index, all) => all.indexOf(year) === index).join(', ')}.</span>}</div>
       <div className="due-period-grid">
         {calendarPeriods.map(({ period, due, selectable }) => {
           const paid = due?.status === 'paid';
-          const inProgress = due?.status === 'preference_created';
+          const expired = isExpiredPreference(due);
+          const inProgress = due?.status === 'preference_created' && !expired;
           const selected = selectedPeriods.includes(period);
           const label = new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(period));
           return <label key={period} className={`due-period-card ${paid ? 'paid' : inProgress ? 'pending' : selected ? 'selected' : !selectable ? 'disabled' : ''}`}>
@@ -165,10 +172,11 @@ export default function TesoreriaClient({ transactions, transactionSummary, tran
             <span className="due-period-label">{label.charAt(0).toUpperCase() + label.slice(1)}</span>
             {!selectable && <span className="due-period-status">Sin registro</span>}
             <strong>{formatCurrency(Number(due?.amount ?? junta.monthly_due_amount))}</strong>
-            <span className="due-period-status">{paid ? '✓ Pagado' : inProgress ? '⌛ En proceso' : due?.status === 'refunded' ? '↩ Reembolsado' : due?.status === 'rejected' ? '! Rechazado' : 'Pendiente'}</span>
+            <span className="due-period-status">{paid ? '✓ Pagado' : inProgress ? '⌛ En proceso' : expired ? '↻ Intento vencido · renovar' : due?.status === 'refunded' ? '↩ Reembolsado' : due?.status === 'rejected' ? '! Rechazado' : 'Pendiente'}</span>
           </label>;
         })}
       </div>
+      {selectedPeriodLabels.length > 0 && <div className="selected-period-summary" aria-live="polite"><strong>Selección conservada ({selectedPeriodLabels.length}/12)</strong><span>{selectedPeriodLabels.join(' · ')}</span></div>}
       <div className="due-payment-summary"><span>Total seleccionado: <strong>{formatCurrency(payableSelectedPeriods.reduce((sum, period) => sum + Number(dueByPeriod.get(period)?.amount ?? junta.monthly_due_amount), 0))}</strong></span><button className="btn btn-primary btn-lg" disabled={!payableSelectedPeriods.length || paymentLoading || !mercadoPagoConnection.connected} onClick={() => void startDuePayment()}>{paymentLoading ? 'Abriendo Mercado Pago…' : payableSelectedPeriods.length > 1 ? `Pagar ${payableSelectedPeriods.length} meses` : 'Pagar período seleccionado'}</button></div>
       {!mercadoPagoConnection.connected && <p className="form-help">La directiva debe conectar Mercado Pago antes de iniciar un cobro.</p>}
       {paymentError && <p className="form-error">{paymentError}</p>}
