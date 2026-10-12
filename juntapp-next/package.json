@@ -10,7 +10,7 @@
     "smoke:notifications": "node --env-file=.env.local scripts/smoke-notifications.mjs",
     "test:mobile-startup": "node scripts/test-mobile-startup.mjs",
     "test:mobile-production": "node scripts/test-mobile-startup.mjs --production",
-    "test:ux-ui-v2": "node scripts/test-ux-ui-v2-regressions.mjs",
+    "test:ux-ui-v2": "node --experimental-strip-types scripts/test-ux-ui-v2-regressions.mjs",
     "smoke:mobile-preview": "node scripts/smoke-mobile-preview.mjs",
     "dev": "next dev",
     "build": "next build",

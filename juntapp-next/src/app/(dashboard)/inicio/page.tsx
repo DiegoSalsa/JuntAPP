@@ -38,9 +38,10 @@ export default async function InicioPage() {
   const totalHouseholds = dueCountsError || !dueRow ? null : Number(dueRow.total_households ?? 0);
   const myDuePaid = myDueError ? null : Boolean(myDue);
   const junta = (Array.isArray(profile?.juntas) ? profile.juntas[0] : profile?.juntas) ?? null;
-  const activePollsQueryError = Boolean(activePollsError || activePollsCountError);
+  const activePollsQueryError = Boolean(activePollsError || activePollsCountError) || activePollsCount == null;
   const canReviewApplications = profile?.role === 'dirigente'
     && !hasSecretaryError
+    && typeof hasSecretary === 'boolean'
     && canReviewMembershipApplications(profile, Boolean(hasSecretary), junta?.owner_id ?? null);
   const month = new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric' }).format(new Date());
   const urgent = announcements?.find((item) => item.category === 'urgente');

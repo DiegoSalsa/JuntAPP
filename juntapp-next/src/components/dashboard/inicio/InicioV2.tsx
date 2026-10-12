@@ -57,6 +57,7 @@ function NeighborHome({ profile, junta, month, announcements, urgent, activePoll
   const firstName = profile.name.split(' ')[0];
   const dueAction = myDuePaid ? 'Ver mis cuotas' : 'Revisar y pagar';
   const activePoll = activePolls[0];
+  const hasActivePolls = (activePollsCount ?? 0) > 0;
   const dueTitle = myDueError ? 'Cuota no disponible' : myDuePaid ? 'Gracias por estar al día' : `Tu cuota de ${formatPeriod(period)}`;
   return <section className="home-v2 home-v2-neighbor" id="view-inicio" data-home-role="vecino">
     <header className="home-v2-hero home-v2-hero-neighbor">
@@ -73,9 +74,9 @@ function NeighborHome({ profile, junta, month, announcements, urgent, activePoll
       </article>
       <article className="home-v2-focus-card home-v2-poll-focus">
         <div className="home-v2-focus-top"><span className="home-v2-eyebrow">Participación</span><span className="home-v2-icon-badge" aria-hidden="true">?</span></div>
-        <h2>{activePollsError ? 'Consultas no disponibles' : activePoll ? 'Hay consultas abiertas' : 'Tu voz cuenta en la junta'}</h2>
-        <p>{activePollsError ? 'No pudimos cargar las consultas de tu junta.' : activePoll ? `${activePoll.title}${(activePollsCount ?? 0) > 1 ? ` · ${activePollsCount} disponibles` : ''}` : 'Cuando la directiva publique una consulta, podrás responderla desde aquí.'}</p>
-        <Link href="/consultas" className="home-v2-secondary-action">{activePollsError ? 'Reintentar en Consultas' : activePoll ? 'Participar ahora' : 'Ver consultas'}<span aria-hidden="true">→</span></Link>
+        <h2>{activePollsError ? 'Consultas no disponibles' : activePollsCount === 1 ? 'Hay una consulta abierta' : hasActivePolls ? 'Hay consultas abiertas' : 'Tu voz cuenta en la junta'}</h2>
+        <p>{activePollsError ? 'No pudimos cargar las consultas de tu junta.' : hasActivePolls ? `${activePoll?.title ?? 'Participa en Consultas'}${(activePollsCount ?? 0) > 1 ? ` · ${activePollsCount} disponibles` : ''}` : 'Cuando la directiva publique una consulta, podrás responderla desde aquí.'}</p>
+        <Link href="/consultas" className="home-v2-secondary-action">{activePollsError ? 'Reintentar en Consultas' : hasActivePolls ? 'Participar ahora' : 'Ver consultas'}<span aria-hidden="true">→</span></Link>
       </article>
     </div>
     <div className="home-v2-stat-strip" aria-label="Resumen de tu junta">
