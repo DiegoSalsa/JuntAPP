@@ -16,6 +16,7 @@ Esta carpeta contiene capturas comparables de la rama `mejoras/ux-ui-v2` frente 
 
 - `before/` conserva el estado V1 antes de aplicar el rediseño.
 - `after/` conserva el estado V2 final de esta iteración.
+- `corrected-after/` contiene las capturas nuevas del cierre: indicadores con estados de error explícitos, dos consultas activas renderizadas de forma independiente, PWA compacta y vistas estructurales móviles. El fixture de cierre añade la segunda consulta; `before/` y `after/` originales se preservan sin sobrescribir.
 - Las imágenes usan el mismo fixture, tamaños y rutas para que la revisión independiente pueda comparar jerarquía, densidad, navegación y estados.
 
 Capturas representativas:
@@ -24,9 +25,15 @@ Capturas representativas:
 - [Inicio directiva antes](before/directiva-inicio-390x844.png) · [Inicio directiva después](after/directiva-inicio-390x844.png)
 - [Inicio directiva escritorio](after/directiva-inicio-1440x900.png)
 - [Resumen Superadmin escritorio](after/superadmin-1440x900.png)
+- [Inicio vecino corregido](corrected-after/vecino-inicio-390x844.png)
+- [Inicio directiva corregido](corrected-after/directiva-inicio-390x844.png)
+- [Consultas múltiples corregidas](corrected-after/directiva-consultas-390x844.png)
+- [Tesorería escritorio corregida](corrected-after/directiva-tesoreria-1440x900.png)
+- [Creador de páginas corregido](corrected-after/directiva-mi-pagina-1440x900.png)
+- [Resumen Superadmin corregido](corrected-after/superadmin-1440x900.png)
 
 ## Decisiones verificables
 
 El inicio ahora separa las prioridades del vecino (cuota, consulta y avisos) de las tareas de la directiva (caja, padrón, propuestas y comunicación). La navegación móvil mantiene acceso inmediato a Inicio, Socios, Caja y Consultas, y deja las áreas secundarias en el menú contextual. Los módulos existentes comparten estados de foco, tarjetas, filtros, tablas y controles con foco visible sin alterar sus contratos de datos.
 
-La evidencia no sustituye una sesión contra un entorno de staging con datos representativos. La prueba de Superadmin usa una cookie HMAC local y una identidad ficticia únicamente para validar renderizado y autorización de la ruta.
+La evidencia no sustituye una sesión contra un entorno de staging con datos representativos. La prueba de Superadmin usa una cookie HMAC local firmada con una cuenta de prueba permitida por el fixture; el correo se reemplaza por `operador-qa@example.invalid` antes de guardar la captura.

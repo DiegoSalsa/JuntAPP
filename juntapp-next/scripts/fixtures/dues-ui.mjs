@@ -61,7 +61,7 @@ export async function startFixture({ serve = false, visual = false } = {}) {
       let raw = ''; for await (const chunk of req) raw += chunk;
       const input = raw ? JSON.parse(raw) : {};
       if (visual && rpc === 'board_contacts') { res.end(JSON.stringify(profiles.filter(x => x.role === 'dirigente'))); return; }
-      if (visual && rpc === 'poll_overview') { res.end(JSON.stringify(visualData.polls[0].options.map((x, i) => ({ poll_id: 'poll-fixture', option_id: x.id, votes: [18, 12, 7][i], has_voted: false })))); return; }
+      if (visual && rpc === 'poll_overview') { const overview = visualData.polls.flatMap((poll, pollIndex) => poll.options.map((x, i) => ({ poll_id: poll.id, option_id: x.id, votes: pollIndex === 0 ? [18, 12, 7][i] ?? 0 : [9, 6][i] ?? 0, has_voted: false }))); res.end(JSON.stringify(overview)); return; }
       if (visual && rpc === 'superadmin_member_counts') { res.end(JSON.stringify([{ junta_id: juntaId, members: 2, leaders: 1 }])); return; }
       if (visual && rpc === 'superadmin_due_summary') { res.end(JSON.stringify([{ collected: 180000 }])); return; }
       if (visual && rpc === 'superadmin_treasury_summary') { res.end(JSON.stringify([visualData.summary])); return; }
