@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { parseSettlementReport, settlementRowToMovement } from '../src/lib/mercadopago-treasury-report.ts';
+import { calculateTreasuryStats } from '../src/lib/treasury.ts';
 
 const csv = `\uFEFFEXTERNAL_REFERENCE;SOURCE_ID;TRANSACTION_TYPE;TRANSACTION_AMOUNT;TRANSACTION_DATE;FEE_AMOUNT;SETTLEMENT_NET_AMOUNT
 "juntapp-due:due:junta:household";1001;SETTLEMENT;5000;2026-08-11T10:00:00.000-04:00;-180;4820
@@ -40,5 +41,19 @@ const spanishHeaders = settlementRowToMovement({
 assert.equal(spanishHeaders.gross, 10.5);
 assert.equal(spanishHeaders.fee, 0.5);
 assert.equal(spanishHeaders.net, 10);
+
+const largeLedger = Array.from({ length: 1205 }, (_, index) => ({
+  id: `movement-${index}`,
+  type: 'ingreso',
+  amount: 1000,
+  gross_amount: 1000,
+  fee_amount: 10,
+  net_amount: 990,
+  accounting_kind: 'income',
+}));
+const largeStats = calculateTreasuryStats(largeLedger);
+assert.equal(largeStats.income, 1_205_000, 'el resumen debe incluir más de 1000 movimientos');
+assert.equal(largeStats.fees, 12_050);
+assert.equal(largeStats.balance, 1_192_950);
 
 console.log('Treasury reconciliation tests passed.');

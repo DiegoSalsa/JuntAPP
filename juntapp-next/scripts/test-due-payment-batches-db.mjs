@@ -41,6 +41,8 @@ try {
   for (const migration of migrations) run(['-v', 'ON_ERROR_STOP=1', '-1', '-f', migration], undefined, databaseUrl);
   const output = run(['-v', 'ON_ERROR_STOP=1', '-f', path.join(root, 'scripts', 'test-due-payment-batches.sql')], undefined, databaseUrl);
   assert.match(output, /due payment PostgreSQL integration checks passed/);
+  assert.match(output, /roster and due history role isolation checks passed/);
+  assert.match(output, /dashboard aggregate PostgreSQL integration checks passed/);
   console.log('DUE_TEST_DB_RESULT=PASSED isolated_database=true');
 } finally {
   run(['-v', 'ON_ERROR_STOP=1', '-c', `DROP DATABASE IF EXISTS "${dbName}"`]);

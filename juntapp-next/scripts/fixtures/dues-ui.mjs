@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
+import * as visualData from './ux-ui-v2-data.mjs';
 
 export const billingMonth = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit' }).format(new Date());
 export function period(offset = 0) {
@@ -30,7 +31,8 @@ const expiredAt = new Date(Date.now() - 60_000).toISOString();
 const dues = [-5, -4, -3, -1].map((offset) => ({ id: `due-${offset}`, junta_id: juntaId, household_id: householdId, period: period(offset), amount: 5000, status: offset === -1 ? 'preference_created' : 'paid', payment_source: offset === -5 ? 'mercadopago' : offset === -1 ? null : 'manual', mercadopago_payment_id: offset === -5 ? 'old-mp-payment' : null, mercadopago_preference_id: offset === -1 ? 'old-preference' : null, checkout_expires_at: offset === -1 ? expiredAt : null, payment_batch_id: offset === -1 ? activeId : offset === -5 ? null : manualId }));
 const tokenFor = (profile) => `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSON.stringify({ sub: profile.id, email: profile.email, exp: 2000000000, role: 'authenticated' })).toString('base64url')}.mock`;
 
-export async function startFixture({ serve = false } = {}) {
+export async function startFixture({ serve = false, visual = false } = {}) {
+  if (visual) junta.subscription_plan = 'juntapp_web';
   const mock = createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', req.headers.origin ?? '*');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -53,14 +55,60 @@ export async function startFixture({ serve = false } = {}) {
       res.end(JSON.stringify({ id: current.id, email: current.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {} })); return;
     }
     if (url.pathname.startsWith('/storage/v1/')) { res.end('[]'); return; }
+    if (url.pathname.startsWith('/rest/v1/rpc/')) {
+      if (!current && bearer !== 'mock-service-role') { res.writeHead(401).end('{"message":"Invalid JWT"}'); return; }
+      const rpc = url.pathname.split('/').pop();
+      let raw = ''; for await (const chunk of req) raw += chunk;
+      const input = raw ? JSON.parse(raw) : {};
+      if (visual && rpc === 'board_contacts') { res.end(JSON.stringify(profiles.filter(x => x.role === 'dirigente'))); return; }
+      if (visual && rpc === 'poll_overview') { const overview = visualData.polls.flatMap((poll, pollIndex) => poll.options.map((x, i) => ({ poll_id: poll.id, option_id: x.id, votes: pollIndex === 0 ? [18, 12, 7][i] ?? 0 : [9, 6][i] ?? 0, has_voted: false }))); res.end(JSON.stringify(overview)); return; }
+      if (visual && rpc === 'superadmin_member_counts') { res.end(JSON.stringify([{ junta_id: juntaId, members: 2, leaders: 1 }])); return; }
+      if (visual && rpc === 'superadmin_due_summary') { res.end(JSON.stringify([{ collected: 180000 }])); return; }
+      if (visual && rpc === 'superadmin_treasury_summary') { res.end(JSON.stringify([visualData.summary])); return; }
+      if (visual && rpc === 'treasury_summary') { res.end(JSON.stringify([visualData.summary])); return; }
+      if (visual && rpc === 'treasury_monthly_summary') { res.end(JSON.stringify(visualData.monthly)); return; }
+      if (visual && rpc === 'treasury_expense_breakdown') { res.end(JSON.stringify([{ category: 'otros', amount: 42000 }, { category: 'comisiones', amount: 6500 }])); return; }
+      if (rpc === 'junta_roster_page') {
+        const search = String(input.p_search ?? '').toLowerCase();
+        const due = String(input.p_due ?? '');
+        let rows = profiles.slice();
+        if (input.p_role) rows = rows.filter((profile) => profile.role === input.p_role);
+        if (input.p_position) rows = rows.filter((profile) => profile.board_position === input.p_position);
+        if (search) rows = rows.filter((profile) => [profile.name, profile.rut, profile.address].some((value) => value.toLowerCase().includes(search)));
+        if (due === 'al_dia') rows = rows.filter((profile) => dues.some((item) => item.household_id === profile.household_id && item.status === 'paid' && item.period === input.p_period));
+        if (due === 'pendiente') rows = rows.filter((profile) => !dues.some((item) => item.household_id === profile.household_id && item.status === 'paid' && item.period === input.p_period));
+        const offset = Number(input.p_offset ?? 0); const limit = Number(input.p_limit ?? 50); const total = rows.length;
+        res.end(JSON.stringify(rows.slice(offset, offset + limit).map((profile) => ({ ...profile, cuota_status: dues.some((item) => item.household_id === profile.household_id && item.status === 'paid' && item.period === input.p_period) ? 'al_dia' : 'pendiente', household_created_at: households.find((household) => household.id === profile.household_id)?.created_at ?? null, total_count: total })))); return;
+      }
+      if (rpc === 'junta_due_history') {
+        const ids = input.p_household_ids ?? [];
+        const matching = dues.filter((item) => ids.includes(item.household_id)).sort((a, b) => a.household_id.localeCompare(b.household_id) || b.period.localeCompare(a.period));
+        const offset = Number(input.p_offset ?? 0); const limit = Math.min(Math.max(Number(input.p_limit ?? 200), 1), 200);
+        res.end(JSON.stringify(matching.slice(offset, offset + limit).map((item) => ({ ...item, mercadopago_payment_id: undefined, total_count: matching.length })))); return;
+      }
+      if (rpc === 'junta_has_secretary') { res.end('false'); return; }
+      if (rpc === 'junta_due_household_counts') {
+        const total = households.length; const paid = households.filter((household) => dues.some((item) => item.household_id === household.id && item.period === input.p_period && item.status === 'paid')).length;
+        res.end(JSON.stringify([{ total_households: total, paid_households: paid }])); return;
+      }
+      if (rpc === 'treasury_summary') { res.end(JSON.stringify([{ income: 0, expenses: 0, fees: 0, balance: 0 }])); return; }
+      if (rpc === 'treasury_monthly_summary' || rpc === 'treasury_expense_breakdown') { res.end('[]'); return; }
+      res.end('[]'); return;
+    }
     if (url.pathname.startsWith('/rest/v1/')) {
       if (!current && bearer !== 'mock-service-role') { res.writeHead(401).end('{"message":"Invalid JWT"}'); return; }
       const table = url.pathname.split('/').pop();
       let rows = table === 'profiles' ? profiles : table === 'households' ? households : table === 'member_dues' ? dues : table === 'due_payment_batches' ? batches : table === 'mercadopago_junta_accounts' ? [{ mercadopago_user_id: '12345', connected_at: period() }] : table === 'board_contacts' ? [profiles[0]] : [];
+      if (visual) {
+        const tables = { announcements: visualData.announcements, polls: visualData.polls, poll_proposals: visualData.proposals, transactions: visualData.transactions, website_pages: [visualData.website], juntas: [{ ...junta, region: 'Región de prueba', comuna: 'Comuna de prueba', created_at: '2026-10-01T12:00:00Z' }] };
+        if (tables[table]) rows = tables[table];
+      }
       for (const [key, value] of url.searchParams) {
         if (value.startsWith('eq.')) rows = rows.filter((row) => String(row[key]) === value.slice(3));
       }
-      if (req.method === 'HEAD') { res.setHeader('Content-Range', `0-0/${rows.length}`); res.end(); return; }
+      res.setHeader('Content-Range', `0-${Math.max(0, rows.length - 1)}/${rows.length}`);
+      if (url.searchParams.has('limit')) rows = rows.slice(0, Number(url.searchParams.get('limit')));
+      if (req.method === 'HEAD') { res.end(); return; }
       res.end(JSON.stringify(req.headers.accept?.includes('application/vnd.pgrst.object+json') ? rows[0] ?? null : rows)); return;
     }
     res.writeHead(404).end('{"message":"Not found"}');
@@ -68,7 +116,7 @@ export async function startFixture({ serve = false } = {}) {
   mock.listen(serve ? 42011 : 0, '127.0.0.1'); await once(mock, 'listening');
   const appPort = serve ? 42012 : 43000 + Math.floor(Math.random() * 10000);
   const appUrl = `http://127.0.0.1:${appPort}`;
-  const app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '-H', '127.0.0.1', '-p', String(appPort)], { env: { ...process.env, NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${mock.address().port}`, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'mock-anon-key', SUPABASE_SERVICE_ROLE_KEY: 'mock-service-role', NEXT_TELEMETRY_DISABLED: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '-H', '127.0.0.1', '-p', String(appPort)], { env: { ...process.env, NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${mock.address().port}`, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'mock-anon-key', SUPABASE_SERVICE_ROLE_KEY: 'mock-service-role', SUPERADMIN_SESSION_SECRET: visualData.sessionSecret, NEXT_TELEMETRY_DISABLED: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = ''; app.stdout.on('data', (chunk) => { output += chunk; }); app.stderr.on('data', (chunk) => { output += chunk; });
   for (let attempt = 0; attempt < 90; attempt++) {
     try { if ((await fetch(`${appUrl}/login`)).ok) return { appUrl, stop: async () => { app.kill(); await once(app, 'close'); await new Promise((resolve) => mock.close(resolve)); } }; } catch { /* starting */ }

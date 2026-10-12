@@ -11,11 +11,11 @@ import BrandMark from '@/components/brand/BrandMark';
 
 const navigation = [
   { route: 'inicio', label: 'Inicio', icon: 'home' },
-  { route: 'socios', label: 'Registro de Socios', icon: 'users' },
-  { route: 'tesoreria', label: 'Tesorería Transparente', icon: 'money' },
-  { route: 'consultas', label: 'Consultas Comunitarias', icon: 'vote' },
-  { route: 'comunicaciones', label: 'Anuncios Oficiales', icon: 'mail' },
-  { route: 'mi-pagina', label: 'Mi Página Web', icon: 'website' },
+  { route: 'socios', label: 'Socios', icon: 'users' },
+  { route: 'tesoreria', label: 'Caja', icon: 'money' },
+  { route: 'consultas', label: 'Consultas', icon: 'vote' },
+  { route: 'comunicaciones', label: 'Avisos', icon: 'mail' },
+  { route: 'mi-pagina', label: 'Sitio web', icon: 'website' },
 ] as const;
 
 function NavIcon({ icon }: { icon: typeof navigation[number]['icon'] }) {
@@ -40,33 +40,55 @@ export default function OriginalDashboardShell({ profile, junta, trialEndsAt, ch
   const currentRoute = pathname.split('/')[1] || 'inicio';
   const [collapsed, setCollapsed] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const unreadCount = notifications.filter((notification) => !notification.read).length;
   const hasWebsitePlan = ['web', 'juntapp_web'].includes(junta?.subscription_plan ?? '');
   const visibleNavigation = navigation
     .filter((item) => item.route === 'mi-pagina' ? hasWebsitePlan : junta?.subscription_plan !== 'web')
     .map((item) => item.route === 'mi-pagina' && profile.role === 'vecino'
       ? { ...item, label: 'Web de la Junta', href: `/sitio/${junta?.slug}` }
       : { ...item, href: `/${item.route}` });
+  const navGroups = [
+    { label: 'Tu comunidad', items: visibleNavigation.filter((item) => ['inicio', 'socios'].includes(item.route)) },
+    { label: 'Gestión', items: visibleNavigation.filter((item) => ['tesoreria', 'consultas'].includes(item.route)) },
+    { label: 'Comunicación', items: visibleNavigation.filter((item) => ['comunicaciones', 'mi-pagina'].includes(item.route)) },
+  ].filter((group) => group.items.length);
+  const mobilePrimaryNavigation = visibleNavigation.filter((item) => ['inicio', 'socios', 'tesoreria', 'consultas'].includes(item.route));
+  const currentLabel = visibleNavigation.find((item) => item.route === currentRoute)?.label ?? 'JuntAPP';
 
   useEffect(() => {
     if (profile.role === 'dirigente' && junta?.subscription_plan === 'web' && pathname !== '/mi-pagina') router.replace('/mi-pagina');
     const supabase = createClient();
     async function loadNotifications() {
       try {
-        const { data, error } = await supabase.from('notifications').select('*').eq('user_id', profile.id).order('date', { ascending: false }).limit(10);
-        if (error) {
-          console.error('[dashboard] Notifications unavailable', { route: pathname, code: error.code });
+        const [{ data, error }, { count, error: countError }] = await Promise.all([
+          supabase.from('notifications').select('*').eq('user_id', profile.id).order('date', { ascending: false }).limit(10),
+          supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', profile.id).eq('read', false),
+        ]);
+        if (error || countError) {
+          console.error('[dashboard] Notifications unavailable', { route: pathname, code: error?.code ?? countError?.code });
           return;
         }
         setNotifications(data ?? []);
+        setUnreadCount(count ?? 0);
       } catch (error) {
         console.error('[dashboard] Notifications unavailable', { route: pathname, error });
       }
     }
     void loadNotifications();
-    const channel = supabase.channel(`notifications:${profile.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` }, (payload) => setNotifications((current) => [payload.new as Notification, ...current].slice(0, 10))).subscribe();
+    const channel = supabase.channel(`notifications:${profile.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` }, (payload) => {
+        const notification = payload.new as Notification;
+        setNotifications((current) => current.some((item) => item.id === notification.id) ? current : [notification, ...current].slice(0, 10));
+        void loadNotifications();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` }, (payload) => {
+        const after = payload.new as Notification;
+        setNotifications((current) => current.map((item) => item.id === after.id ? after : item));
+        void loadNotifications();
+      })
+      .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [junta?.subscription_plan, pathname, profile.id, profile.role, router]);
 
@@ -86,12 +108,14 @@ export default function OriginalDashboardShell({ profile, junta, trialEndsAt, ch
   async function markAllRead() {
     await createClient().from('notifications').update({ read: true }).eq('user_id', profile.id).eq('read', false);
     setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
+    setUnreadCount(0);
   }
 
   async function openNotification(notification: Notification) {
     if (!notification.read) {
       await createClient().from('notifications').update({ read: true }).eq('id', notification.id).eq('user_id', profile.id);
       setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, read: true } : item));
+      setUnreadCount((count) => Math.max(0, count - 1));
     }
     setNotificationsOpen(false);
     if (notification.action?.startsWith('/')) router.push(notification.action);
@@ -112,7 +136,7 @@ export default function OriginalDashboardShell({ profile, junta, trialEndsAt, ch
           <div className="sidebar-profile-meta"><span id="userProfileRut">RUT: {profile.rut}</span><button id="btnLogoutBtn" onClick={logout}>Cerrar Sesión</button></div>
         </div>
         <nav className="sidebar-nav" aria-label="Navegación del panel">
-          {visibleNavigation.map((item) => <Link href={item.href} aria-label={item.label} title={item.label} className={`nav-item ${currentRoute === item.route ? 'active' : ''}`} id={`nav-${item.route}`} data-view={item.route} key={item.route}><NavIcon icon={item.icon}/><span>{item.label}</span>{item.route === 'comunicaciones' && unreadCount > 0 && <span className="badge badge-accent">{unreadCount}</span>}</Link>)}
+          {navGroups.map((group) => <div className="sidebar-nav-group" key={group.label}><span className="sidebar-nav-group-label">{group.label}</span>{group.items.map((item) => <Link href={item.href} aria-label={item.label} title={item.label} className={`nav-item ${currentRoute === item.route ? 'active' : ''}`} id={`nav-${item.route}`} data-view={item.route} key={item.route}><NavIcon icon={item.icon}/><span>{item.label}</span>{item.route === 'comunicaciones' && unreadCount > 0 && <span className="badge badge-accent">{unreadCount}</span>}</Link>)}</div>)}
         </nav>
         <div className="sidebar-footer">
           <button className="theme-btn notifications-bell-btn" id="bellToggle" onClick={() => setNotificationsOpen((value) => !value)}><span className="bell-icon-wrapper"><BellIcon />{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}</span><span>Notificaciones</span></button>
@@ -121,8 +145,9 @@ export default function OriginalDashboardShell({ profile, junta, trialEndsAt, ch
         </div>
       </aside>
       <main className="app-main-content" id="mainContent">
-        <header className="mobile-header"><div className="mobile-logo"><BrandMark size={36} /><span>Junt<strong>APP</strong></span></div><div className="mobile-header-actions"><button className="mobile-bell-btn" id="mobileBellToggle" onClick={() => setNotificationsOpen((value) => !value)} aria-label="Ver notificaciones"><BellIcon />{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}</button><button className="mobile-menu-toggle" type="button" aria-label={mobileMenuOpen?'Cerrar menú':'Abrir menú'} aria-expanded={mobileMenuOpen} onClick={()=>setMobileMenuOpen((value)=>!value)}><span/><span/><span/></button></div></header>
+        <header className="mobile-header"><div className="mobile-logo"><BrandMark size={36} /><span>Junt<strong>APP</strong></span></div><span className="mobile-current-section">{currentLabel}</span><div className="mobile-header-actions"><button className="mobile-bell-btn" id="mobileBellToggle" onClick={() => setNotificationsOpen((value) => !value)} aria-label="Ver notificaciones"><BellIcon />{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}</button><button className="mobile-menu-toggle" type="button" aria-label={mobileMenuOpen?'Cerrar menú':'Abrir menú'} aria-expanded={mobileMenuOpen} onClick={()=>setMobileMenuOpen((value)=>!value)}><span/><span/><span/></button></div></header>
         {mobileMenuOpen&&<div className="mobile-navigation-menu" role="navigation" aria-label="Menú principal">{visibleNavigation.map((item)=><Link href={item.href} className={`mobile-navigation-link ${currentRoute===item.route?'active':''}`} key={item.route} onClick={()=>setMobileMenuOpen(false)}><NavIcon icon={item.icon}/><span>{item.label}</span></Link>)}<div className="mobile-menu-secondary"><button type="button" className="logout" onClick={logout}>Cerrar sesión</button></div></div>}
+        {mobilePrimaryNavigation.length > 0 && <nav className="mobile-primary-nav" aria-label="Acciones principales">{mobilePrimaryNavigation.map((item) => <Link href={item.href} aria-current={currentRoute === item.route ? 'page' : undefined} className={currentRoute === item.route ? 'active' : ''} key={item.route}><NavIcon icon={item.icon} /><span>{item.label}</span></Link>)}</nav>}
         {trialEndsAt && (
           <div className="mx-4 mt-4 border-4 border-black bg-[#fff4a3] px-4 py-3 text-[#071b34] shadow-[4px_4px_0_#000] sm:mx-6">
             <p className="text-xs font-black uppercase">Período gratuito hasta {new Intl.DateTimeFormat('es-CL').format(new Date(trialEndsAt))}</p>

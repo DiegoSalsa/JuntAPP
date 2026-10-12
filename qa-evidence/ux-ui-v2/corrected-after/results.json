@@ -1,0 +1,818 @@
+[
+  {
+    "role": "directiva",
+    "route": "inicio",
+    "viewport": {
+      "width": 320,
+      "height": 640
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "socios",
+    "viewport": {
+      "width": 320,
+      "height": 640
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "tesoreria",
+    "viewport": {
+      "width": 320,
+      "height": 640
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "consultas",
+    "viewport": {
+      "width": 320,
+      "height": 640
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "comunicaciones",
+    "viewport": {
+      "width": 320,
+      "height": 640
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "mi-pagina",
+    "viewport": {
+      "width": 320,
+      "height": 640
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "inicio",
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "socios",
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "tesoreria",
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "consultas",
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "comunicaciones",
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "mi-pagina",
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "inicio",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "socios",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "tesoreria",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "consultas",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "comunicaciones",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "mi-pagina",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "inicio",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "socios",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "tesoreria",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "consultas",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "comunicaciones",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "mi-pagina",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "inicio",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "socios",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "tesoreria",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "consultas",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "comunicaciones",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "mi-pagina",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "inicio",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "socios",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "tesoreria",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "consultas",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "comunicaciones",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "directiva",
+    "route": "mi-pagina",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "inicio",
+    "viewport": {
+      "width": 320,
+      "height": 640
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "tesoreria",
+    "viewport": {
+      "width": 320,
+      "height": 640
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "consultas",
+    "viewport": {
+      "width": 320,
+      "height": 640
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "socios",
+    "viewport": {
+      "width": 320,
+      "height": 640
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "inicio",
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "tesoreria",
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "consultas",
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "socios",
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "inicio",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "tesoreria",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "consultas",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "socios",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "inicio",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "tesoreria",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "consultas",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "socios",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "inicio",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "tesoreria",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "consultas",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "socios",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "inicio",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "tesoreria",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "consultas",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "vecino",
+    "route": "socios",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": 0,
+    "errors": []
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin",
+    "viewport": {
+      "width": 320,
+      "height": 640
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/juntas",
+    "viewport": {
+      "width": 320,
+      "height": 640
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/usuarios",
+    "viewport": {
+      "width": 320,
+      "height": 640
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/operaciones",
+    "viewport": {
+      "width": 320,
+      "height": 640
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin",
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/juntas",
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/usuarios",
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/operaciones",
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/juntas",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/usuarios",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/operaciones",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/juntas",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/usuarios",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/operaciones",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/juntas",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/usuarios",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/operaciones",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/juntas",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/usuarios",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": 0
+  },
+  {
+    "role": "superadmin-local",
+    "route": "superadmin/operaciones",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": 0
+  }
+]

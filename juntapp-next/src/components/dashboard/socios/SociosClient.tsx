@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { formatRUT, validateRUT } from '@/lib/utils';
 import { ASSIGNABLE_BOARD_POSITIONS, boardPositionLabel } from '@/lib/board';
@@ -12,10 +12,9 @@ type AssignableBoardPosition = Exclude<BoardPosition, 'presidente'>;
 
 type BoardModalMode = 'assign' | 'change' | 'remove';
 type ManualAction = 'paid' | 'pending';
-type DueHistoryItem = { household_id: string; period: string; status: string; amount: number; payment_source?: string | null; mercadopago_payment_id?: string | null; payment_batch_id?: string | null };
+type DueHistoryItem = { household_id: string; period: string; status: string; amount: number; payment_source?: string | null; payment_batch_id?: string | null };
 
-export default function SociosClient({ socios, currentProfile, junta, applications, householdCreatedAtById, dueHistory }: { socios: Profile[]; currentProfile: Profile; junta: Junta; applications: MembershipApplication[]; householdCreatedAtById: Record<string, string>; dueHistory: DueHistoryItem[] }) {
-  const [search, setSearch] = useState('');
+export default function SociosClient({ socios, currentProfile, junta, applications, householdCreatedAtById, dueHistory, totalSocios, page, pageSize, initialSearch, initialFilters, hasSecretary }: { socios: Profile[]; currentProfile: Profile; junta: Junta; applications: MembershipApplication[]; householdCreatedAtById: Record<string, string>; dueHistory: DueHistoryItem[]; totalSocios: number; page: number; pageSize: number; initialSearch: string; initialFilters: { role: string; position: string; due: string }; hasSecretary: boolean }) {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState('');
@@ -42,13 +41,32 @@ export default function SociosClient({ socios, currentProfile, junta, applicatio
   const [boardRoleLoading, setBoardRoleLoading] = useState(false);
   const [boardRoleError, setBoardRoleError] = useState('');
   const router = useRouter();
+  const pathname = usePathname();
+  const currentSearchParams = useSearchParams();
   const isDirigente = currentProfile.role === 'dirigente';
   const isPresident = currentProfile.role === 'dirigente' && currentProfile.board_position === 'presidente';
   const isOwner = junta.owner_id === currentProfile.id;
-  const hasSecretary = socios.some((socio) => socio.role === 'dirigente' && socio.board_position === 'secretario');
   const canReviewApplications = currentProfile.board_position === 'secretario'
     || (!hasSecretary && (currentProfile.board_position === 'presidente' || isOwner));
-  const filtered = socios.filter((s) => [s.name, s.rut, s.address].some((value) => value.toLowerCase().includes(search.toLowerCase())));
+  const search = currentSearchParams.get('q') ?? initialSearch;
+  const filtered = socios;
+  const totalPages = Math.max(1, Math.ceil(totalSocios / pageSize));
+
+  function applyRosterFilters(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const params = new URLSearchParams(currentSearchParams.toString());
+    const form = new FormData(event.currentTarget);
+    const values = { q: String(form.get('q') ?? '').trim(), role: String(form.get('role') ?? ''), position: String(form.get('position') ?? ''), due: String(form.get('due') ?? '') };
+    Object.entries(values).forEach(([key, value]) => value ? params.set(key, value) : params.delete(key));
+    params.delete('page');
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
+  function changeRosterPage(nextPage: number) {
+    const params = new URLSearchParams(currentSearchParams.toString());
+    params.set('page', String(nextPage));
+    router.push(`${pathname}?${params.toString()}`);
+  }
 
   function openBoardModal(socio: Profile, mode: BoardModalMode) {
     const currentPosition = socio.board_position && socio.board_position !== 'presidente' ? socio.board_position : 'dirigente';
@@ -175,7 +193,7 @@ export default function SociosClient({ socios, currentProfile, junta, applicatio
     for (const generatedDate = new Date(firstGeneratedDate); generatedDate <= lastGeneratedDate; generatedDate.setUTCMonth(generatedDate.getUTCMonth() + 1)) {
       const period = `${generatedDate.getUTCFullYear()}-${String(generatedDate.getUTCMonth() + 1).padStart(2, '0')}-01`;
       if (!known.some((due) => due.period === period)) {
-        options.push({ household_id: socio.household_id, period, status: 'pending', amount: Number(junta.monthly_due_amount ?? 0), payment_source: null, mercadopago_payment_id: null });
+        options.push({ household_id: socio.household_id, period, status: 'pending', amount: Number(junta.monthly_due_amount ?? 0), payment_source: null });
       }
     }
     return options.sort((left, right) => left.period.localeCompare(right.period));
@@ -269,11 +287,22 @@ export default function SociosClient({ socios, currentProfile, junta, applicatio
         <div className="card shadow-box mb-24"><div className="card-header"><div><span className="view-subtitle">Bandeja de solicitudes</span><h3 className="card-title">Solicitudes de ingreso ({applications.length})</h3></div></div><p className="card-subtitle">La directiva puede revisar las cartas. {hasSecretary ? 'Secretaría resuelve cada solicitud.' : 'Mientras no exista Secretaría, Presidencia o el titular de la junta puede resolverlas.'}</p><div className="past-polls-list">{applications.map((application) => <article className="past-poll-row" key={application.id}><div className="past-poll-info"><h4 className="past-poll-title">{application.name}</h4><p className="past-poll-desc">RUT {formatRUT(application.rut)} · {application.address} · {application.email}</p><span className="form-help">Carta: {application.letter_delivery_status === 'sent' ? 'correo enviado y copia interna' : application.letter_delivery_status === 'failed' ? 'copia interna; correo no entregado' : 'copia interna'}</span></div>{canReviewApplications ? <div className="view-actions"><button className="btn btn-sm btn-secondary danger-action" disabled={applicationLoading === application.id} onClick={() => void decideApplication(application, 'reject')}>Rechazar</button><button className="btn btn-sm btn-primary" disabled={applicationLoading === application.id} onClick={() => void decideApplication(application, 'approve')}>{applicationLoading === application.id ? 'Procesando…' : 'Aceptar e invitar'}</button></div> : <span className="status-badge pendiente">Pendiente de la persona responsable</span>}</article>)}{!applications.length && <p className="empty-state">No hay solicitudes pendientes.</p>}</div>{applicationError && <p className="form-error">{applicationError}</p>}</div>
         <div className="board-position-panel shadow-box"><div><span className="view-subtitle">Tu función en la directiva</span><h3 className="card-title">Cargo: {boardPositionLabel(currentProfile.board_position)}</h3><p>{isPresident ? 'Presidencia asigna Secretario, Tesorero y Dirigente desde el padrón. La Presidencia no se transfiere aquí.' : 'Los cargos de la directiva los administra Presidencia. Presidente, Secretario y Tesorero son únicos.'}</p></div></div>
         {isOwner && <div className="board-position-panel shadow-box"><div><span className="view-subtitle">Plan de la junta</span><h3 className="card-title">Suscripción mensual activa</h3><p>{new Intl.NumberFormat("es-CL").format(junta.subscription_price)} CLP al mes, IVA incluido. Mercado Pago gestiona la renovación automática.</p></div><div className="board-position-control"><button type="button" className="btn btn-secondary danger-action" disabled={cancellingSubscription} onClick={() => void cancelSubscription()}>{cancellingSubscription ? 'Cancelando…' : 'Cancelar suscripción'}</button>{subscriptionMessage && <span className="form-help">{subscriptionMessage}</span>}</div></div>}
-        <div className="filters-card"><div className="search-input-wrapper"><span className="search-icon" aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} className="form-input search-input" placeholder="Buscar socio por nombre, dirección o RUT…" /></div><div className="roster-meta"><span className="meta-label">Total en Padrón:</span><strong className="meta-value">{filtered.length} {filtered.length === 1 ? 'vecino' : 'vecinos'}</strong></div></div>
+                <section className="roster-workspace" aria-labelledby="roster-list-title">
+        <header className="roster-workspace-head"><div><span className="view-subtitle">Padrón activo</span><h3 id="roster-list-title">Personas y domicilios</h3><p>Filtra por rol, cargo y estado de cuota para revisar cada ficha.</p></div><strong>{totalSocios} {totalSocios === 1 ? 'resultado' : 'resultados'}</strong></header>
+                <form className="roster-filters" onSubmit={applyRosterFilters} aria-label="Filtros del padrón">
+          <div className="search-input-wrapper"><label className="sr-only" htmlFor="roster-search">Buscar socio</label><span className="search-icon" aria-hidden="true">⌕</span><input key={search} id="roster-search" name="q" defaultValue={search} className="form-input search-input" placeholder="Buscar socio por nombre, dirección o RUT…" /></div>
+          <select name="role" className="form-input" defaultValue={initialFilters.role} aria-label="Filtrar por tipo"><option value="">Todos los tipos</option><option value="vecino">Vecinos</option><option value="dirigente">Directiva</option></select>
+          <select name="position" className="form-input" defaultValue={initialFilters.position} aria-label="Filtrar por cargo"><option value="">Todos los cargos</option>{ASSIGNABLE_BOARD_POSITIONS.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}<option value="presidente">Presidente</option></select>
+          <select name="due" className="form-input" defaultValue={initialFilters.due} aria-label="Filtrar por cuota"><option value="">Todas las cuotas</option><option value="al_dia">Al día</option><option value="pendiente">Pendientes</option></select>
+          <button className="btn btn-secondary" type="submit">Buscar</button>
+          <div className="roster-meta"><span className="meta-label">Total en Padrón:</span><strong className="meta-value">{totalSocios} {totalSocios === 1 ? 'vecino' : 'vecinos'}</strong></div>
+        </form>
         <div className="roster-grid">
           {filtered.map((socio) => <article className="socio-card" key={socio.id}><div className="socio-header"><div className="socio-info"><h4 className="socio-name"><strong>{socio.name}</strong></h4>{socio.role === 'dirigente' && <span className="board-role-badge">{boardPositionLabel(socio.board_position)}</span>}<span className="socio-rut">RUT: {formatRUT(socio.rut)}</span></div><span className={`status-badge ${socio.cuota_status === 'al_dia' ? 'al-dia' : 'pendiente'}`}>{socio.cuota_status === 'al_dia' ? 'Al Día' : 'Pendiente'}</span></div><div className="socio-details"><div className="socio-detail-item"><span aria-hidden="true">⌂</span><span>{socio.address} · cuota por domicilio</span></div>{socio.phone && <div className="socio-detail-item"><span aria-hidden="true">☎</span><span>{socio.phone}</span></div>}{socio.email && <div className="socio-detail-item"><span aria-hidden="true">✉</span><span>{socio.email}</span></div>}</div><div className="socio-actions"><button className="btn btn-xs btn-ghost" title="Registrar o revertir pagos de este domicilio" onClick={() => openPaymentModal(socio)}>Gestionar Cuota del Domicilio</button>{canManageBoardRole(socio) && socio.role === 'vecino' && <button className="btn btn-xs btn-secondary" onClick={() => openBoardModal(socio, 'assign')}>Asignar a directiva</button>}{canManageBoardRole(socio) && socio.role === 'dirigente' && <><button className="btn btn-xs btn-secondary" onClick={() => openBoardModal(socio, 'change')}>Cambiar cargo</button><button className="btn btn-xs btn-secondary danger-action" onClick={() => openBoardModal(socio, 'remove')}>Quitar de directiva</button></>}{socio.role === 'vecino' && socio.id !== currentProfile.id && <button className="btn btn-xs btn-secondary danger-action" onClick={() => { setDeleteError(''); setDeleteConfirmation(''); setDeletingSocio(socio); }}>Eliminar</button>}</div></article>)}
           {!filtered.length && <div className="split-card full-width"><p>No se encontraron socios con el criterio ingresado.</p></div>}
         </div>
+        <div className="transaction-pagination" aria-label="Paginación del padrón"><button className="btn btn-secondary" type="button" disabled={page <= 1} onClick={() => changeRosterPage(page - 1)}>← Anteriores</button><span>Página {page} de {totalPages}</span><button className="btn btn-secondary" type="button" disabled={page >= totalPages} onClick={() => changeRosterPage(page + 1)}>Siguientes →</button></div>
+        </section>
       </> : <div className="roster-grid vecino-profile-grid">
         <article className="card shadow-box vecino-profile-card"><div className="profile-card-heading"><div><span className="view-subtitle">Tu Ficha Vecinal</span><h3 className="card-title">Mis Datos de Socio</h3></div><span className={`status-badge ${currentProfile.cuota_status === 'al_dia' ? 'al-dia' : 'pendiente'}`}>{currentProfile.cuota_status === 'al_dia' ? 'Al Día' : 'Pendiente'}</span></div><dl className="profile-detail-list"><div><dt>Nombre:</dt><dd>{currentProfile.name}</dd></div><div><dt>RUT:</dt><dd>{formatRUT(currentProfile.rut)}</dd></div><div><dt>Dirección:</dt><dd>{currentProfile.address}</dd></div></dl><form className="contact-update-form" onSubmit={updateContact}><h4>Actualizar Datos de Contacto</h4><div className="form-group"><label className="form-label" htmlFor="myPhone">Teléfono de Contacto</label><input id="myPhone" name="phone" className="form-input" defaultValue={currentProfile.phone ?? ''} /></div><div className="form-group"><label className="form-label" htmlFor="myEmail">Correo Electrónico</label><input id="myEmail" name="email" type="email" className="form-input" defaultValue={currentProfile.email} required /></div>{contactSaved && <p className="form-message">{contactSaved}</p>}<button className="btn btn-primary btn-sm btn-block">Guardar Cambios de Contacto</button></form></article>
         <article className="card shadow-box vecino-profile-card"><span className="view-subtitle">Directiva de tu Junta</span><h3 className="card-title">Contacto de Directiva</h3><p className="card-subtitle">Comunícate con la directiva para certificados, beneficios o consultas de la comunidad.</p><div className="board-contact-list">{socios.filter((s) => s.role === 'dirigente').map((member) => <div className="board-contact" key={member.id}><div className="board-avatar">{member.name.charAt(0)}</div><div><strong>{member.name}</strong><span>{boardPositionLabel(member.board_position)}</span></div>{member.phone ? <a className="btn btn-secondary btn-sm" href={`tel:${member.phone}`}>Llamar</a> : <a className="btn btn-secondary btn-sm" href={`mailto:${member.email}`}>Email</a>}</div>)}</div></article>

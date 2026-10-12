@@ -182,10 +182,10 @@ async function runCase(browserType, name, initScript, options = {}) {
   if (options.unsupported) await page.getByText('Las notificaciones no son compatibles', { exact: false }).waitFor({ timeout: 10000 });
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
   assert.ok(overflow <= 2, `${name}: horizontal overflow ${overflow}px`);
-  if (options.desktop) await page.locator('.sidebar-nav').getByRole('link', { name: 'Anuncios Oficiales' }).click();
+  if (options.desktop) await page.locator('.sidebar-nav').getByRole('link', { name: 'Avisos', exact: true }).click();
   else {
     await page.getByRole('button', { name: 'Abrir menú' }).click();
-    await page.getByRole('navigation', { name: 'Menú principal' }).getByRole('link', { name: 'Anuncios Oficiales' }).click();
+    await page.getByRole('navigation', { name: 'Menú principal' }).getByRole('link', { name: 'Avisos', exact: true }).click();
   }
   await page.waitForURL('**/comunicaciones');
   assert.equal(await page.locator('.app-layout').isVisible(), true);

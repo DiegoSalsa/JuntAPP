@@ -10,6 +10,7 @@
     "smoke:notifications": "node --env-file=.env.local scripts/smoke-notifications.mjs",
     "test:mobile-startup": "node scripts/test-mobile-startup.mjs",
     "test:mobile-production": "node scripts/test-mobile-startup.mjs --production",
+    "test:ux-ui-v2": "node --experimental-strip-types scripts/test-ux-ui-v2-regressions.mjs",
     "smoke:mobile-preview": "node scripts/smoke-mobile-preview.mjs",
     "dev": "next dev",
     "build": "next build",
@@ -19,6 +20,7 @@
     "audit:public": "node scripts/audit-public-pages.mjs",
     "test:board-role": "node --experimental-strip-types scripts/test-board-role-management.mjs",
     "test:treasury": "node --experimental-strip-types scripts/test-treasury-reconciliation.mjs",
+    "test:dashboard-audit": "node --experimental-strip-types scripts/test-dashboard-audit.mjs",
     "test:dues": "node scripts/test-due-payment-batches.mjs",
     "test:dues:ui": "node scripts/test-dues-ui.mjs",
     "test:dues:db": "node scripts/test-due-payment-batches-db.mjs",
@@ -32,7 +34,7 @@
     "@supabase/supabase-js": "^2.110.7",
     "chart.js": "^4.5.1",
     "driver.js": "^1.7.0",
-    "next": "16.3.6",
+    "next": "16.3.8",
     "react": "19.2.8",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "19.2.8",
@@ -47,13 +49,14 @@
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
     "eslint": "^9",
-    "eslint-config-next": "16.3.6",
+    "eslint-config-next": "16.3.8",
     "playwright-core": "^1.61.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
   "overrides": {
     "postcss": "8.5.28",
-    "sharp": "0.35.4"
+    "sharp": "0.35.5",
+    "source-map-js": "1.2.2"
   }
 }
