@@ -15,6 +15,7 @@ type HomeProps = {
   urgent?: string;
   activePolls: ActivePoll[];
   activePollsError?: boolean;
+  activePollsCount: number | null;
   myDuePaid: boolean | null;
   myDueError?: boolean;
   period: string;
@@ -52,7 +53,7 @@ export default function InicioV2(props: HomeProps) {
   return profile.role === 'dirigente' ? <BoardHome {...props} /> : <NeighborHome {...props} />;
 }
 
-function NeighborHome({ profile, junta, month, announcements, urgent, activePolls, activePollsError, myDuePaid, myDueError, period, boardContacts, totalHouseholds }: HomeProps) {
+function NeighborHome({ profile, junta, month, announcements, urgent, activePolls, activePollsError, activePollsCount, myDuePaid, myDueError, period, boardContacts, totalHouseholds }: HomeProps) {
   const firstName = profile.name.split(' ')[0];
   const dueAction = myDuePaid ? 'Ver mis cuotas' : 'Revisar y pagar';
   const activePoll = activePolls[0];
@@ -73,7 +74,7 @@ function NeighborHome({ profile, junta, month, announcements, urgent, activePoll
       <article className="home-v2-focus-card home-v2-poll-focus">
         <div className="home-v2-focus-top"><span className="home-v2-eyebrow">Participación</span><span className="home-v2-icon-badge" aria-hidden="true">?</span></div>
         <h2>{activePollsError ? 'Consultas no disponibles' : activePoll ? 'Hay consultas abiertas' : 'Tu voz cuenta en la junta'}</h2>
-        <p>{activePollsError ? 'No pudimos cargar las consultas de tu junta.' : activePoll ? `${activePoll.title}${activePolls.length > 1 ? ` · ${activePolls.length} disponibles` : ''}` : 'Cuando la directiva publique una consulta, podrás responderla desde aquí.'}</p>
+        <p>{activePollsError ? 'No pudimos cargar las consultas de tu junta.' : activePoll ? `${activePoll.title}${(activePollsCount ?? 0) > 1 ? ` · ${activePollsCount} disponibles` : ''}` : 'Cuando la directiva publique una consulta, podrás responderla desde aquí.'}</p>
         <Link href="/consultas" className="home-v2-secondary-action">{activePollsError ? 'Reintentar en Consultas' : activePoll ? 'Participar ahora' : 'Ver consultas'}<span aria-hidden="true">→</span></Link>
       </article>
     </div>
@@ -94,7 +95,7 @@ function NeighborHome({ profile, junta, month, announcements, urgent, activePoll
   </section>;
 }
 
-function BoardHome({ profile, junta, month, announcements, urgent, activePolls, activePollsError, treasury, treasuryError, paidHouseholds, totalHouseholds, pendingApplications, pendingProposals, sociosCount, canReviewApplications, canManageTreasury, canPublishPolls, canPublishAnnouncements }: HomeProps) {
+function BoardHome({ profile, junta, month, announcements, urgent, activePolls, activePollsError, activePollsCount, treasury, treasuryError, paidHouseholds, totalHouseholds, pendingApplications, pendingProposals, sociosCount, canReviewApplications, canManageTreasury, canPublishPolls, canPublishAnnouncements }: HomeProps) {
   const balance = treasury?.balance ?? 0;
   const activePoll = activePolls[0];
   const paidLabel = paidHouseholds == null || totalHouseholds == null ? 'Sin información' : `${paidHouseholds}/${totalHouseholds}`;
@@ -104,7 +105,7 @@ function BoardHome({ profile, junta, month, announcements, urgent, activePolls, 
   const tasks = [
     ...(canReviewApplications ? [{ label: 'Solicitudes de ingreso', value: pendingApplications == null ? '—' : pendingApplications, href: '/socios', tone: pendingApplications ? 'attention' : 'quiet', action: 'Revisar padrón' }] : []),
     { label: 'Propuestas por revisar', value: pendingProposals == null ? '—' : pendingProposals, href: '/consultas', tone: pendingProposals ? 'attention' : 'quiet', action: 'Abrir consultas' },
-    { label: 'Consultas activas', value: activePollsError ? '—' : activePolls.length, href: '/consultas', tone: activePollsError ? 'quiet' : activePoll ? 'ready' : 'quiet', action: activePoll ? 'Ver resultados' : 'Abrir consultas' },
+    { label: 'Consultas activas', value: activePollsError || activePollsCount == null ? '—' : activePollsCount, href: '/consultas', tone: activePollsError ? 'quiet' : activePollsCount ? 'ready' : 'quiet', action: activePoll ? 'Ver resultados' : 'Abrir consultas' },
   ];
   return <section className="home-v2 home-v2-board" id="view-inicio" data-home-role="dirigente">
     <header className="home-v2-hero home-v2-hero-board"><div><span className="home-v2-eyebrow">Centro de operaciones · {junta?.name ?? 'Mi junta'}</span><h1 aria-label="Panel de Inicio">Hola, {profile.name.split(' ')[0]}</h1><p>Una vista clara para tomar decisiones y mantener la junta en movimiento.</p></div><div className="home-v2-board-role"><span>Tu cargo</span><strong>{boardPositionLabel(profile.board_position)}</strong><small>{month}</small></div></header>

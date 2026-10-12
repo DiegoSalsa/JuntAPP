@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (...parts) => fs.readFileSync(path.join(root, ...parts), 'utf8');
 const inicioPage = read('src', 'app', '(dashboard)', 'inicio', 'page.tsx');
+const membershipReview = read('src', 'lib', 'membership-review.ts');
 const inicio = read('src', 'components', 'dashboard', 'inicio', 'InicioV2.tsx');
 const alerts = read('src', 'components', 'dashboard', 'inicio', 'InicioAlerts.tsx');
 const polls = read('src', 'components', 'dashboard', 'votaciones', 'VotacionesClient.tsx');
@@ -22,9 +23,16 @@ assert.ok(inicioPage.indexOf("select('id', { count: 'exact'") > inicioPage.index
 assert.match(inicioPage, /\.select\('id, title'\)[\s\S]*\.limit\(3\)/);
 const activePollQuery = inicioPage.slice(inicioPage.indexOf("supabase.from('polls')"), inicioPage.indexOf("supabase.from('polls')") + 260);
 assert.doesNotMatch(activePollQuery, /maybeSingle/);
+assert.match(inicioPage, /select\('id', \{ count: 'exact', head: true \}\)\.eq\('junta_id', juntaId\)\.eq\('active', true\)/);
+assert.match(inicioPage, /activePollsCount/);
+assert.match(inicioPage, /supabase\.rpc\('junta_has_secretary'\)/);
+assert.match(inicioPage, /!hasSecretaryError[\s\S]*canReviewMembershipApplications\(profile, Boolean\(hasSecretary\)/);
+assert.match(membershipReview, /if \(member\.role !== 'dirigente'\) return false/);
+assert.match(membershipReview, /return !hasSecretary[\s\S]*member\.board_position === 'presidente'/);
 assert.match(inicio, /Domicilios registrados/);
 assert.match(inicio, /Sin información/);
 assert.match(inicio, /activePollsError/);
+assert.match(inicio, /activePollsCount/);
 assert.match(inicio, /canReviewApplications/);
 
 // Compact PWA setup keeps installation and push actions available on demand.
