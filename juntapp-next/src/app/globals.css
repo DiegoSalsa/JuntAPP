@@ -809,6 +809,7 @@ body .plans-page .plans-hero p{color:#fff!important}body .plans-page .plan-card.
 .transaction-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
 .transaction-pagination span { color: #536477; font-size: 13px; font-weight: 750; }
 @media (max-width: 700px) { .treasury-transaction-filters,.roster-filters { align-items: stretch; } .treasury-transaction-filters .form-input,.roster-filters .form-input,.treasury-transaction-filters button,.roster-filters button { width: 100%; flex-basis: 100%; } .transaction-pagination > * { flex: 1 1 100%; text-align: center; } }
+@media (max-width: 700px) { .ledger-table-wrapper .ledger-table { display: none; } .ledger-table-wrapper .ledger-mobile-list { display: grid; } }
 
 /* UX/UI V2: calm hierarchy around the existing JuntAPP neo-brutalist language. */
 .home-v2 { --home-ink: #071b34; --home-muted: #607086; --home-line: #d7e0e8; --home-paper: #fffdf7; --home-orange: #f97316; --home-mint: #d9f6e6; --home-sky: #dff3ff; max-width: 1320px; margin: 0 auto; color: var(--home-ink); }
@@ -992,6 +993,12 @@ body .plans-page .plans-hero p{color:#fff!important}body .plans-page .plan-card.
 .ledger-table-wrapper { border: 1px solid #d7e0e8; border-radius: 12px; background: #fff; }
 .ledger-table th { background: #f5f8fb; color: #536477; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; }
 .ledger-table td { font-size: .9rem; }
+.ledger-mobile-list { display: none; }
+.ledger-mobile-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-top: 1px solid #d7e0e8; }
+.ledger-mobile-item > div { min-width: 0; display: grid; gap: 4px; }
+.ledger-mobile-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0a2340; }
+.ledger-mobile-item span { color: #536477; font-size: .8rem; }
+.ledger-mobile-item b { flex: 0 0 auto; }
 .due-period-grid { gap: 12px; }
 .due-period-card { border: 1px solid #d7e0e8; box-shadow: 3px 3px 0 rgba(7,27,52,.1); }
 .due-period-card .status-badge { border: 1px solid currentColor; }
@@ -1024,4 +1031,25 @@ body .plans-page .plans-hero p{color:#fff!important}body .plans-page .plan-card.
   .builder-top { position: relative; flex-direction: column; align-items: stretch; }
   .builder-workspace { display: block; min-height: 0; height: auto; }
   .builder-panel { border-right: 0; border-bottom: 1px solid #dce1e7; }
+}
+
+.notification-center.details-compact { padding: 16px 18px; }
+.notification-center.details-compact .notification-center-head { margin-bottom: 0; align-items: center; }
+.notification-center-head-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.notification-details-toggle { min-height: 40px; padding: 8px 12px; border: 2px solid #0a2340; background: #fff; color: #0a2340; font-size: .76rem; font-weight: 900; }
+.notification-details-toggle:hover,.notification-details-toggle:focus-visible { background: #ffeadc; }
+.notification-center.details-compact .notification-center-head p { margin-top: 4px; font-size: .8rem; }
+.notification-center.details-compact .notification-health { padding: 7px 10px; }
+.active-polls-stack { display: grid; gap: 18px; }
+.view-header-note { margin: 6px 0 0; color: #536477; font-size: .86rem; font-weight: 750; }
+.poll-badge-wrapper { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.roster-workspace-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 24px 0 8px; }
+.roster-workspace-head h3 { margin: 2px 0 0; color: #0a2340; font-size: 1.15rem; }
+.roster-workspace-head p { margin: 0; color: #536477; font-size: .82rem; }
+.roster-workspace-head > strong { color: #536477; font-size: .85rem; }
+.announcement-featured-urgent { border-top: 4px solid #b4232f; background: linear-gradient(145deg,#fff,#fff5f5); }
+.builder-tabs button[aria-selected="true"] { background: #fff; box-shadow: 0 1px 5px #cbd3dc; }
+@media (max-width: 700px) {
+  .roster-workspace-head { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .poll-badge-wrapper .btn { width: 100%; }
 }
