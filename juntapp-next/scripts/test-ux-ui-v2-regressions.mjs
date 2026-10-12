@@ -53,10 +53,10 @@ function loadSource(source, filename, replacements = {}) {
     fileName: filename,
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText;
-  const module = { exports: {} };
+  const compiledModule = { exports: {} };
   const resolve = (name) => Object.hasOwn(replacements, name) ? replacements[name] : require(name);
-  new Function('require', 'module', 'exports', compiled)(resolve, module, module.exports);
-  return module.exports;
+  new Function('require', 'module', 'exports', compiled)(resolve, compiledModule, compiledModule.exports);
+  return compiledModule.exports;
 }
 const Home = loadSource(inicio, 'InicioV2.tsx', {
   'next/link': ({ children, ...props }) => createElement('a', props, children),
