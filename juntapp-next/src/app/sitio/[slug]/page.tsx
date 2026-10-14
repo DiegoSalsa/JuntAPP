@@ -6,7 +6,7 @@ import { assessCommunityIndexability } from '@/lib/seo/community-indexability';
 import { publicMetadata } from '@/lib/seo/metadata';
 import { COMMUNITY_SITE_INDEXING_ENABLED } from '@/lib/seo/site';
 import { createClient } from '@/lib/supabase/server';
-import { DEFAULT_CONTENT, DEFAULT_THEME, type WebsiteContent, type WebsiteTemplate, type WebsiteTheme } from '@/lib/website';
+import { normalizeWebsiteContent, normalizeWebsiteTheme, type WebsiteContent, type WebsiteTemplate, type WebsiteTheme } from '@/lib/website';
 
 type PublicWebsite = {
   name: string;
@@ -20,7 +20,8 @@ type PublicWebsite = {
 
 const loadPublicWebsite = cache(async (slug: string) => {
   const supabase = await createClient();
-  const { data } = await supabase.rpc('get_public_website', { p_slug: slug });
+  const { data, error } = await supabase.rpc('get_public_website', { p_slug: slug });
+  if (error) throw new Error('No fue posible cargar el sitio de la comunidad.');
   return (data ?? null) as PublicWebsite | null;
 });
 
@@ -33,7 +34,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const page = await loadPublicWebsite(slug);
   if (!page) return { robots: { index: false, follow: false } };
-  const content = { ...DEFAULT_CONTENT, ...(page.content ?? {}) };
+  const content = normalizeWebsiteContent(page.content);
   const decision = assessCommunityIndexability({ name: page.name, content });
   const path = `/sitio/${slug}`;
   const indexable = COMMUNITY_SITE_INDEXING_ENABLED && decision.indexable;
@@ -51,13 +52,13 @@ export default async function PublicCommunityPage({ params }: { params: Promise<
   const { slug } = await params;
   const page = await loadPublicWebsite(slug);
   if (!page) notFound();
-  const content = { ...DEFAULT_CONTENT, ...(page.content ?? {}) };
+  const content = normalizeWebsiteContent(page.content);
   return (
     <WebsiteRenderer
       name={page.name}
       template={page.template}
       content={content}
-      theme={{ ...DEFAULT_THEME, ...(page.theme ?? {}) }}
+      theme={normalizeWebsiteTheme(page.theme)}
       logo={page.logo_url}
       hero={page.hero_image_url}
       gallery={page.gallery ?? []}

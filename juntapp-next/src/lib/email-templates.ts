@@ -205,6 +205,17 @@ export function juntaTrialExpiredTemplate(input: {
   };
 }
 
+export function trialRequestReceivedTemplate(input: { name: string; juntaName: string }): EmailTemplate {
+  const content = paragraph(`Hola ${input.name}, recibimos la solicitud de prueba para ${input.juntaName}.`)
+    + paragraph('Nuestro equipo revisará los antecedentes desde el panel de JuntAPP y se pondrá en contacto para crear el espacio de la junta de forma personalizada.')
+    + detailRows([['Beneficio solicitado', '1 mes gratis'], ['Tarjeta requerida', 'No']])
+    + paragraph('El período gratuito comenzará cuando activemos la junta y enviemos el acceso a Presidencia.');
+  return {
+    subject: `Recibimos tu solicitud de prueba — ${input.juntaName}`,
+    html: layout('Tu solicitud ya está registrada', content, 'La solicitud de prueba de tu junta ya llegó al equipo de JuntAPP'),
+  };
+}
+
 export function formatClp(amount: number) {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(amount);
 }

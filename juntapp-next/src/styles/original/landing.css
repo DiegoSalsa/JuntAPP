@@ -2849,7 +2849,7 @@ textarea.form-input {
   zoom: 100% !important;
 }
 
-.style-swiss h1,
+.style-swiss h1:not(:where(.community-site *, .builder-shell *)),
 .style-swiss .hero-title {
   font-family: 'Montserrat', sans-serif !important;
   font-weight: 900 !important;
@@ -2860,8 +2860,8 @@ textarea.form-input {
   letter-spacing: -0.04em !important;
 }
 
-.style-swiss h2,
-.style-swiss h3,
+.style-swiss h2:not(:where(.community-site *, .builder-shell *)),
+.style-swiss h3:not(:where(.community-site *, .builder-shell *)),
 .style-swiss .section-title {
   font-family: 'Montserrat', sans-serif !important;
   font-weight: 900 !important;
@@ -2872,7 +2872,7 @@ textarea.form-input {
   letter-spacing: -0.03em !important;
 }
 
-.style-swiss h4 {
+.style-swiss h4:not(:where(.community-site *, .builder-shell *)) {
   font-family: 'Montserrat', sans-serif !important;
   font-weight: 900 !important;
   text-transform: uppercase !important;
@@ -2881,7 +2881,7 @@ textarea.form-input {
   line-height: 1.3 !important;
 }
 
-.style-swiss strong {
+.style-swiss strong:not(:where(.community-site *, .builder-shell *)) {
   font-family: 'Montserrat', sans-serif !important;
   font-weight: 900 !important;
   color: #031636 !important;
@@ -2893,7 +2893,7 @@ textarea.form-input {
   color: #031636 !important;
 }
 
-.style-swiss p {
+.style-swiss p:not(:where(.community-site *, .builder-shell *)) {
   font-family: 'Montserrat', sans-serif !important;
   font-weight: 600 !important;
   color: #031636 !important;
@@ -2919,8 +2919,8 @@ textarea.form-input {
   line-height: 1.5 !important;
 }
 
-.style-swiss input,
-.style-swiss textarea {
+.style-swiss input:not(:where(.community-site *, .builder-shell *)),
+.style-swiss textarea:not(:where(.community-site *, .builder-shell *)) {
   font-family: 'Montserrat', sans-serif !important;
   font-weight: 600 !important;
   color: #031636 !important;
@@ -7004,19 +7004,19 @@ body.style-swiss:not(.logged-out) {
   }
 
   /* Responsive Headings to prevent viewport overflow */
-  .style-swiss h1,
+  .style-swiss h1:not(:where(.community-site *, .builder-shell *)),
   .style-swiss .hero-title {
     font-size: 2.2rem !important;
   }
-  .style-swiss h2,
-  .style-swiss h3,
+  .style-swiss h2:not(:where(.community-site *, .builder-shell *)),
+  .style-swiss h3:not(:where(.community-site *, .builder-shell *)),
   .style-swiss .section-title {
     font-size: 1.55rem !important;
   }
   .style-swiss .tech-specs-section-mural h3 {
     font-size: 1.55rem !important;
   }
-  .style-swiss h4 {
+  .style-swiss h4:not(:where(.community-site *, .builder-shell *)) {
     font-size: 1.25rem !important;
   }
 

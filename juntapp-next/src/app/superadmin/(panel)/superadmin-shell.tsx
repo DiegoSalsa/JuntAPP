@@ -9,6 +9,7 @@ import {
   FiBell,
   FiCreditCard,
   FiHome,
+  FiInbox,
   FiLogOut,
   FiMenu,
   FiShield,
@@ -19,6 +20,7 @@ import {
 const navigation = [
   { href: '/superadmin', label: 'Resumen', icon: FiBarChart2 },
   { href: '/superadmin/juntas', label: 'Juntas', icon: FiHome },
+  { href: '/superadmin/solicitudes-prueba', label: 'Pruebas', icon: FiInbox },
   { href: '/superadmin/usuarios', label: 'Usuarios', icon: FiUsers },
   { href: '/superadmin/suscripciones', label: 'Suscripciones', icon: FiCreditCard },
   { href: '/superadmin/operaciones', label: 'Operaciones', icon: FiActivity },

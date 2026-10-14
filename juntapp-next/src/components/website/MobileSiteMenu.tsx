@@ -6,9 +6,11 @@ export default function MobileSiteMenu({ items }: { items: readonly (readonly [s
   const menuRef = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
+    const ownerDocument = menuRef.current?.ownerDocument;
+    if (!ownerDocument) return;
     function closeOutside(event: PointerEvent) {
       const menu = menuRef.current;
-      if (menu?.open && event.target instanceof Node && !menu.contains(event.target)) menu.open = false;
+      if (menu?.open && event.target && !menu.contains(event.target as Node)) menu.open = false;
     }
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === 'Escape' && menuRef.current?.open) {
@@ -16,11 +18,11 @@ export default function MobileSiteMenu({ items }: { items: readonly (readonly [s
         menuRef.current.querySelector('summary')?.focus();
       }
     }
-    document.addEventListener('pointerdown', closeOutside);
-    document.addEventListener('keydown', closeOnEscape);
+    ownerDocument.addEventListener('pointerdown', closeOutside);
+    ownerDocument.addEventListener('keydown', closeOnEscape);
     return () => {
-      document.removeEventListener('pointerdown', closeOutside);
-      document.removeEventListener('keydown', closeOnEscape);
+      ownerDocument.removeEventListener('pointerdown', closeOutside);
+      ownerDocument.removeEventListener('keydown', closeOnEscape);
     };
   }, []);
 

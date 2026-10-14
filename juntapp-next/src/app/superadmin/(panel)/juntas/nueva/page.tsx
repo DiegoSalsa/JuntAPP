@@ -1,14 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { type FormEvent, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiArrowLeft, FiCheckCircle, FiHome, FiLoader, FiUserPlus } from 'react-icons/fi';
 import { CHILE_REGIONS, getCommunes } from '@/lib/chile-locations';
 import { formatCLP, PLANS, subscriptionPrice, type PlanId } from '@/lib/plans';
-import { createJuntaAction } from '../../actions';
+import { createJuntaAction, getTrialRequestForConversionAction } from '../../actions';
 
 type Benefit = 'immediate' | 'free_1' | 'free_3' | 'free_6' | 'free_12' | 'complimentary';
+type TrialRequest = {
+  id: string; contact_name: string; email: string; phone: string; board_role: string;
+  junta_name: string; region: string; comuna: string; requested_plan: string; status: string;
+};
 
 const benefits: Array<{ value: Benefit; title: string; detail: string }> = [
   { value: 'immediate', title: 'Cobro inmediato', detail: 'El titular activa Mercado Pago antes de entrar.' },
@@ -30,8 +34,23 @@ export default function NuevaJuntaPage() {
   const [benefit, setBenefit] = useState<Benefit>('immediate');
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+  const [trialRequest, setTrialRequest] = useState<TrialRequest | null>(null);
   const communes = useMemo(() => getCommunes(region), [region]);
   const price = subscriptionPrice(plan, whatsapp);
+
+  useEffect(() => {
+    const requestId = new URLSearchParams(window.location.search).get('solicitud');
+    if (!requestId) return;
+    void getTrialRequestForConversionAction(requestId).then((result) => {
+      if (!result.ok) { setFeedback({ ok: false, message: result.message }); return; }
+      const request = result.request as TrialRequest;
+      setTrialRequest(request);
+      setRegion(request.region);
+      setComuna(request.comuna);
+      if (request.requested_plan in PLANS) setPlan(request.requested_plan as PlanId);
+      setBenefit('free_1');
+    });
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -39,6 +58,7 @@ export default function NuevaJuntaPage() {
     setFeedback(null);
     const form = new FormData(event.currentTarget);
     const result = await createJuntaAction({
+      trialRequestId: trialRequest?.id,
       name: String(form.get('name') ?? ''),
       address: String(form.get('address') ?? ''),
       region,
@@ -74,7 +94,12 @@ export default function NuevaJuntaPage() {
         <p className="mt-1 text-sm font-bold text-slate-500">Crea la organización, invita a Presidencia y define desde el inicio cómo se cobrará.</p>
       </header>
 
-      <form onSubmit={submit} className="space-y-6">
+      <form key={trialRequest?.id ?? 'manual'} onSubmit={submit} className="space-y-6">
+        {trialRequest && <section className="border-4 border-black bg-[#fff4c2] p-4 shadow-[4px_4px_0_#000]">
+          <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#f97316]">Solicitud de prueba cargada</p>
+          <p className="mt-1 text-sm font-black">{trialRequest.contact_name} · {trialRequest.email} · {trialRequest.phone}</p>
+          {trialRequest.board_role !== 'presidente' && <p className="mt-1 text-xs font-bold text-slate-600">La persona solicitante indicó otro rol. Completa abajo los datos de Presidencia antes de crear la junta.</p>}
+        </section>}
         <section className="border-4 border-black bg-white p-5 shadow-[5px_5px_0_#000] sm:p-6">
           <div className="mb-5 flex items-center gap-3">
             <span className="grid h-10 w-10 place-items-center border-2 border-black bg-[#9ee7ff]"><FiHome /></span>
@@ -82,7 +107,7 @@ export default function NuevaJuntaPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-xs font-black uppercase tracking-wider sm:col-span-2">Nombre oficial
-              <input name="name" required minLength={3} maxLength={160} placeholder="Junta de Vecinos Villa Esperanza" className={inputClass} />
+              <input name="name" required minLength={3} maxLength={160} defaultValue={trialRequest?.junta_name ?? ''} placeholder="Junta de Vecinos Villa Esperanza" className={inputClass} />
             </label>
             <label className="text-xs font-black uppercase tracking-wider sm:col-span-2">Dirección de la sede
               <input name="address" required minLength={3} maxLength={300} placeholder="Pasaje Los Aromos 245" className={inputClass} />
@@ -108,16 +133,16 @@ export default function NuevaJuntaPage() {
           <p className="mb-4 border-2 border-black bg-[#fff4c2] p-3 text-xs font-bold">Recibirá un enlace seguro para crear su contraseña. No se generan contraseñas temporales.</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-xs font-black uppercase tracking-wider">Nombre completo
-              <input name="ownerName" required minLength={3} maxLength={160} placeholder="María González" className={inputClass} />
+              <input name="ownerName" required minLength={3} maxLength={160} defaultValue={trialRequest?.board_role === 'presidente' ? trialRequest.contact_name : ''} placeholder="María González" className={inputClass} />
             </label>
             <label className="text-xs font-black uppercase tracking-wider">Correo
-              <input name="ownerEmail" type="email" required placeholder="presidencia@junta.cl" className={inputClass} />
+              <input name="ownerEmail" type="email" required defaultValue={trialRequest?.board_role === 'presidente' ? trialRequest.email : ''} placeholder="presidencia@junta.cl" className={inputClass} />
             </label>
             <label className="text-xs font-black uppercase tracking-wider">RUT
               <input name="ownerRut" required placeholder="12.345.678-5" className={inputClass} />
             </label>
             <label className="text-xs font-black uppercase tracking-wider">Celular
-              <input name="ownerPhone" type="tel" required placeholder="+56 9 1234 5678" className={inputClass} />
+              <input name="ownerPhone" type="tel" required defaultValue={trialRequest?.board_role === 'presidente' ? trialRequest.phone : ''} placeholder="+56 9 1234 5678" className={inputClass} />
             </label>
             <label className="text-xs font-black uppercase tracking-wider sm:col-span-2">Dirección particular
               <input name="ownerAddress" required minLength={3} maxLength={300} placeholder="Calle, número, villa o departamento" className={inputClass} />

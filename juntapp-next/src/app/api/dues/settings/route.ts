@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { rateLimit } from '@/lib/rate-limit';
+import { currentChileBillingPeriod } from '@/lib/billing-period';
 
 const settingsSchema = z.object({ amount: z.number().int().min(500).max(1_000_000) });
 
@@ -20,5 +21,5 @@ export async function POST(request: Request) {
   }
   const { error } = await supabase.from('juntas').update({ monthly_due_amount: parsed.data.amount }).eq('id', profile.junta_id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ amount: parsed.data.amount });
+  return NextResponse.json({ amount: parsed.data.amount, effectiveFrom: `${currentChileBillingPeriod()}-01` });
 }

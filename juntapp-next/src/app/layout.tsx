@@ -5,6 +5,8 @@ import './globals.css';
 import '@/styles/original/style.css';
 import '@/styles/original/seo-growth.css';
 import 'driver.js/dist/driver.css';
+import '@/components/website/website.css';
+import '@/components/website/builder.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

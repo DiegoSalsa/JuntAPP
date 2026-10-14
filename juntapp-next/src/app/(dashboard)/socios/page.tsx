@@ -27,6 +27,9 @@ export default async function SociosPage() {
   const roster = profile?.role === 'dirigente' ? (socios ?? []) : [...(socios ?? []), ...(boardContacts ?? [])];
 
   const period = `${currentChileBillingPeriod()}-01`;
+  const { data: dueRates, error: dueRatesError } = await supabase.from('monthly_due_rates')
+    .select('effective_from, amount').eq('junta_id', profile?.junta_id).order('effective_from');
+  if (dueRatesError) throw new Error('No fue posible cargar los montos de las cuotas por período.');
   const { data: paidDues } = await supabase
     .from('member_dues')
     .select('household_id')
@@ -66,6 +69,7 @@ export default async function SociosPage() {
       socios={sociosWithCurrentStatus}
       currentProfile={currentProfile!}
       junta={(Array.isArray(profile?.juntas) ? profile.juntas[0] : profile?.juntas)!}
+      dueRates={dueRates ?? []}
       applications={applications ?? []}
       householdCreatedAtById={householdCreatedAtById}
       dueHistory={(dueHistory ?? []).map((due) => ({ household_id: due.household_id, period: due.period, status: due.status, amount: Number(due.amount), payment_source: due.payment_source, mercadopago_payment_id: due.mercadopago_payment_id }))}

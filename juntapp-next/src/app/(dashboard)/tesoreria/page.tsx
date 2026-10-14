@@ -27,6 +27,9 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
 
   const junta = Array.isArray(profile?.juntas) ? profile.juntas[0] : profile?.juntas;
   const period = `${currentChileBillingPeriod()}-01`;
+  const { data: dueRates, error: dueRatesError } = await supabase.from('monthly_due_rates')
+    .select('effective_from, amount').eq('junta_id', profile?.junta_id).order('effective_from');
+  if (dueRatesError) throw new Error('No fue posible cargar los montos de las cuotas por período.');
   const { data: currentDue } = await supabase
     .from('member_dues')
     .select('*')
@@ -97,6 +100,7 @@ export default async function TesoreriaPage({ searchParams }: { searchParams: Pr
       junta={junta!}
       currentDue={currentDue ?? null}
       dueHistory={dueHistory ?? []}
+      dueRates={dueRates ?? []}
       householdCreatedAt={household?.created_at ?? null}
       paymentBatches={paymentBatches ?? []}
       paymentReturn={params.cuota ?? null}

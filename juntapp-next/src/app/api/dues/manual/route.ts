@@ -18,12 +18,12 @@ const manualDueSchema = z.object({
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Debes iniciar sesiÃ³n.' }, { status: 401 });
+  if (!user) return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
   if (!(await rateLimit(`manual-due:${user.id}`, 20, 60_000)).allowed) {
     return NextResponse.json({ error: 'Demasiados cambios seguidos. Espera un momento.' }, { status: 429 });
   }
   const parsed = manualDueSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: 'Selecciona una acciÃ³n y medio de pago vÃ¡lidos.' }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: 'Selecciona una acción y medio de pago válidos.' }, { status: 400 });
   const { data: currentProfile } = await supabase.from('profiles').select('junta_id, role, membership_status').eq('id', user.id).eq('membership_status', 'active').single();
   if (!currentProfile || currentProfile.role !== 'dirigente') {
     return NextResponse.json({ error: 'Solo la directiva puede registrar pagos manuales.' }, { status: 403 });
@@ -44,17 +44,20 @@ export async function POST(request: Request) {
       p_actor: user.id,
     });
     if (batchError) return NextResponse.json({ error: batchError.message }, { status: 409 });
-    const [{ data: recipients }, { data: junta }] = await Promise.all([
+    const [{ data: recipients }, { data: junta }, { data: receipt }] = await Promise.all([
       admin.from('profiles').select('id, name, email').eq('household_id', target.id).eq('membership_status', 'active'),
       admin.from('juntas').select('name, monthly_due_amount').eq('id', target.junta_id).single(),
+      admin.from('due_payment_batches').select('total_amount').eq('id', batchResult?.[0]?.batch_id).single(),
     ]);
     const periodLabel = periods.map((period) => new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(period))).join(', ');
-    await Promise.all((recipients ?? []).map((recipient) => {
+    // The batch may mix historical and current rates. Its recorded total is
+    // authoritative; never send a receipt calculated from the latest fee.
+    await Promise.all((receipt ? recipients ?? [] : []).map((recipient) => {
       const template = duePaymentTemplate({
         name: recipient.name,
         juntaName: junta?.name ?? 'tu junta vecinal',
         period: periodLabel,
-        amount: periods.length * Number(junta?.monthly_due_amount ?? 0),
+        amount: Number(receipt!.total_amount),
         status: 'approved',
         paymentId: batchResult?.[0]?.transaction_id ? `MANUAL-${batchResult[0].transaction_id}` : null,
         actionUrl: `${publicAppUrl()}/tesoreria`,
@@ -63,7 +66,7 @@ export async function POST(request: Request) {
     }));
     await sendPushToUsers((recipients ?? []).map((recipient) => recipient.id), {
       title: 'Cuotas del domicilio registradas',
-      message: `La directiva confirmÃ³ ${periodLabel}.`,
+      message: `La directiva confirmó ${periodLabel}.`,
       action: '/tesoreria',
       tag: `cuota-manual-batch:${batchResult?.[0]?.batch_id ?? target.id}`,
     });

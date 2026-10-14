@@ -3,7 +3,6 @@
 import { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { originalFragments } from '@/content/original-fragments';
-import { seoEventForHref, trackSeoEvent } from '@/lib/seo/events';
 
 export type OriginalPublicView = 'home' | 'caracteristicas' | 'pricing' | 'faq' | 'sobreNosotros' | 'contacto' | 'legal';
 
@@ -15,15 +14,6 @@ export default function OriginalPublicPage({ view, children }: { view?: Original
     const target = event.target as Element;
     const root = rootRef.current;
     if (!root) return;
-    const anchor = target.closest('a');
-    const eventName = seoEventForHref(anchor?.getAttribute('href'));
-    if (eventName) {
-      trackSeoEvent(eventName, {
-        page: pathname,
-        cta: anchor?.textContent?.trim() || eventName,
-        source_section: 'sitio-publico',
-      });
-    }
 
     if (target.closest('#mobileNavToggleBtn')) {
       root.querySelector('#mobileNavToggleBtn')?.classList.toggle('open');
@@ -52,9 +42,14 @@ export default function OriginalPublicPage({ view, children }: { view?: Original
   };
   const publicContent = view === 'pricing'
     ? originalFragments[view]
-      .replace('>14.990<', '>14.990<')
-      .replace('Prueba 30 Días Gratis', 'Crear Junta · $15.000 / mes')
-    : view ? originalFragments[view].replace('class="corporate-view"', 'class="corporate-view active"') : '';
+      .replace('>14.990<', '>15.000<')
+      .replace('Prueba 30 Días Gratis', 'Probar 1 mes gratis')
+    : view === 'faq'
+      ? originalFragments[view]
+        .replace('¿El Plan Piloto es realmente gratis para siempre?', '¿Cómo funciona el mes gratis?')
+        .replace('Sí, el Plan Piloto es 100% gratis para juntas de vecinos de hasta 50 socios activos. No solicitamos datos de tarjetas de crédito al registrarse y no te cobraremos a menos que decidas expandir tu plan.', 'La directiva solicita la prueba sin ingresar una tarjeta. Nuestro equipo revisa los antecedentes, crea el espacio de la junta y envía el acceso personalizado a Presidencia. El mes comienza cuando activamos la junta.')
+        .replace('class="corporate-view"', 'class="corporate-view active"')
+      : view ? originalFragments[view].replace('class="corporate-view"', 'class="corporate-view active"') : '';
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'scrollRestoration' in window.history) {
@@ -105,14 +100,9 @@ export default function OriginalPublicPage({ view, children }: { view?: Original
     const contactForm = root.querySelector<HTMLFormElement>('#landingContactForm');
     listen(contactForm, 'submit', ((event: SubmitEvent) => {
       event.preventDefault();
-      const field = (id: string) => root.querySelector<HTMLInputElement | HTMLTextAreaElement>(`#${id}`)?.value.trim() ?? '';
-      const name = field('contactName');
-      const junta = field('contactComuna');
-      const email = field('contactEmail');
-      const message = field('contactMessage');
-      trackSeoEvent('seo_contact_click', { page: pathname, cta: 'formulario-contacto', source_section: 'contacto' });
-      const body = `Nombre: ${name}\nJunta o comuna: ${junta}\nCorreo: ${email}\n\n${message}`;
-      window.location.href = `mailto:contacto@juntapp.cl?subject=${encodeURIComponent('Consulta desde juntapp.cl')}&body=${encodeURIComponent(body)}`;
+      const name = root.querySelector<HTMLInputElement>('#contactName')?.value ?? '';
+      alert(`¡Gracias ${name}! Hemos recibido tu consulta.`);
+      contactForm?.reset();
     }) as EventListener);
 
     const search = root.querySelector<HTMLInputElement>('#bento-socios-search');
@@ -147,7 +137,7 @@ export default function OriginalPublicPage({ view, children }: { view?: Original
       const annual = billing?.classList.toggle('active') ?? false;
       root.querySelector('#billing-monthly-label')?.classList.toggle('active', !annual);
       root.querySelector('#billing-annual-label')?.classList.toggle('active', annual);
-      const prices = annual ? ['0', '14.990', '22.990'] : ['0', '14.990', '29.990'];
+      const prices = annual ? ['0', '15.000', '23.990'] : ['0', '15.000', '29.990'];
       ['pilot', 'activa', 'grande'].forEach((plan, index) => {
         const price = root.querySelector(`#price-${plan}`);
         const period = root.querySelector(`#period-${plan}`);
@@ -251,10 +241,7 @@ export default function OriginalPublicPage({ view, children }: { view?: Original
       <div className="corporate-landing style-swiss">
         <div dangerouslySetInnerHTML={{ __html: originalFragments.header.replaceAll('j-monogram-20260717', 'rounded-j-20260812') }} />
         <div dangerouslySetInnerHTML={{ __html: originalFragments.mobileNav }} />
-        <div id="mainContent" className="corporate-views-wrapper">
-          {view ? <div dangerouslySetInnerHTML={{ __html: publicContent }} /> : null}
-          {children}
-        </div>
+        {children ? <div id="mainContent" className="corporate-views-wrapper">{children}</div> : <div id="mainContent" className="corporate-views-wrapper" dangerouslySetInnerHTML={{ __html: publicContent }} />}
         <div dangerouslySetInnerHTML={{ __html: originalFragments.footer.replaceAll('j-monogram-20260717', 'rounded-j-20260812') }} />
       </div>
     </div>

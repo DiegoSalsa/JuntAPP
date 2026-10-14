@@ -18,14 +18,14 @@ const schema = z.object({
   email: z.email().trim().toLowerCase(),
   code: z.string().regex(/^\d{6}$/),
 });
-const invalidCodeMessage = 'CÃ³digo invÃ¡lido o vencido.';
+const invalidCodeMessage = 'Código inválido o vencido.';
 
 export async function POST(request: NextRequest) {
   const clientIp = requestClientKey(request);
   const limit = await rateLimit(`superadmin-code-verify:${clientIp}`, 15, 15 * 60_000);
   if (!limit.allowed) {
     return NextResponse.json(
-      { error: 'Demasiados intentos de verificaciÃ³n. Espera 15 minutos.' },
+      { error: 'Demasiados intentos de verificación. Espera 15 minutos.' },
       {
         status: 429,
         headers: { 'Retry-After': String(Math.ceil((limit.resetAt - Date.now()) / 1000)) },
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
   const sessionToken = createSuperadminSessionToken(challenge.email);
   if (!sessionToken) return NextResponse.json({ error: invalidCodeMessage }, { status: 401 });
 
-  console.info('[Superadmin] Acceso por cÃ³digo verificado.', {
+  console.info('[Superadmin] Acceso por código verificado.', {
     email: challenge.email,
     ipAddress: clientIp,
   });

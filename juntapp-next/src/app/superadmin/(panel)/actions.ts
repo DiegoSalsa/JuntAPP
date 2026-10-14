@@ -44,6 +44,7 @@ const broadcastSchema = z.object({
 });
 
 const createJuntaSchema = z.object({
+  trialRequestId: z.uuid().optional(),
   name: z.string().trim().min(3).max(160),
   address: z.string().trim().min(3).max(300),
   comuna: z.string().trim().min(2).max(100),
@@ -63,6 +64,11 @@ const createJuntaSchema = z.object({
 }).refine((data) => isValidChileLocation(data.region, data.comuna), {
   message: 'La región y comuna no corresponden.',
   path: ['comuna'],
+});
+
+const trialRequestStatusSchema = z.object({
+  requestId: z.uuid(),
+  status: z.enum(['new', 'contacted', 'converted', 'discarded']),
 });
 
 export type AdminActionResult = {
@@ -170,8 +176,6 @@ export async function createJuntaAction(
 
   let invitedUserId: string | null = null;
   try {
-    const { error: authorizationError } = await admin.from('member_invitations').insert({ junta_id: junta.id, email: parsed.data.ownerEmail.toLowerCase(), rut: ownerRut });
-    if (authorizationError) throw new Error(authorizationError.message);
     const { data: invited, error: inviteError } = await admin.auth.admin.generateLink({
       type: 'invite',
       email: parsed.data.ownerEmail,
@@ -183,6 +187,7 @@ export async function createJuntaAction(
           phone: parsed.data.ownerPhone,
           junta_action: 'join',
           invite_code: junta.invite_code,
+          manual_invite: true,
         },
         redirectTo: `${publicAppUrl()}/aceptar-invitacion`,
       },
@@ -234,6 +239,15 @@ export async function createJuntaAction(
     };
   }
 
+  if (parsed.data.trialRequestId) {
+    const { error: requestError } = await admin.from('trial_requests').update({
+      status: 'converted',
+      created_junta_id: junta.id,
+      updated_at: new Date().toISOString(),
+    }).eq('id', parsed.data.trialRequestId);
+    if (requestError) console.error('[Superadmin] No fue posible cerrar la solicitud de prueba.', requestError);
+  }
+
   console.info('[Superadmin] Junta creada manualmente.', {
     juntaId: junta.id,
     ownerId: invitedUserId,
@@ -248,6 +262,28 @@ export async function createJuntaAction(
     juntaId: junta.id,
     message: `Junta creada. Enviamos la invitación a ${parsed.data.ownerEmail}.`,
   };
+}
+
+export async function getTrialRequestForConversionAction(requestId: string) {
+  await requireSuperadmin();
+  const parsed = z.uuid().safeParse(requestId);
+  if (!parsed.success) return { ok: false as const, message: 'Solicitud inválida.' };
+  const admin = createAdminClient();
+  const { data, error } = await admin.from('trial_requests')
+    .select('id, contact_name, email, phone, board_role, junta_name, region, comuna, requested_plan, status')
+    .eq('id', parsed.data)
+    .maybeSingle();
+  if (error || !data) return { ok: false as const, message: 'La solicitud ya no está disponible.' };
+  return { ok: true as const, request: data };
+}
+
+export async function updateTrialRequestStatusAction(requestId: string, formData: FormData) {
+  await requireSuperadmin();
+  const parsed = trialRequestStatusSchema.safeParse({ requestId, status: formData.get('status') });
+  if (!parsed.success) return;
+  const admin = createAdminClient();
+  await admin.from('trial_requests').update({ status: parsed.data.status, updated_at: new Date().toISOString() }).eq('id', parsed.data.requestId);
+  revalidatePath(`${SUPERADMIN_PATH}/solicitudes-prueba`);
 }
 
 export async function updateJuntaSubscriptionAction(

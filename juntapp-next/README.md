@@ -15,6 +15,21 @@ npm run dev
 
 La aplicación queda disponible en `http://localhost:3000`.
 
+## Editor de páginas comunitarias
+
+`/mi-pagina` ofrece once plantillas con distintas composiciones, cinco paletas y una vista previa independiente de escritorio (1280 px), tablet (768 px) y móvil (390 px). Cambiar el diseño conserva textos, noticias y fotografías. La portada incluye una ilustración cuando todavía no se ha subido una imagen.
+
+Antes de publicar, **Guardar borrador** conserva la página privada. En un sitio publicado, **Guardar cambios** actualiza el contenido público y mantiene la publicación activa. **Publicar y avisar** guarda y prepara una notificación para la comunidad. **Despublicar página** solo cambia la visibilidad y conserva el contenido guardado. Los cambios pendientes se indican en el editor y generan un aviso al cerrar o recargar la pestaña.
+
+Las fotografías se optimizan a WebP antes de subirlas. El editor admite seis imágenes de galería y doce noticias; impide guardar noticias sin título o contenido y permite reintentar guardados fallidos sin perder la edición.
+
+```bash
+npm run test:website-builder
+npm run preview:website-builder
+```
+
+La prueba usa un Supabase simulado en memoria, verifica las once plantillas entre 320 y 1280 px y comprueba edición, publicación, reintentos, imágenes y navegación en Chromium y WebKit. Guarda capturas en `.test-artifacts/website-builder`. Requiere los navegadores de Playwright instalados. La vista de demostración abre en `http://127.0.0.1:4317`: `/sitio/los-aromos` muestra el sitio y `/login` permite entrar al editor con `editor@example.test` y cualquier contraseña. Sus datos se descartan al detener el proceso.
+
 ## Cuentas demo
 
 - Directiva: `directiva.demo@juntapp.cl` / `DirectivaDemo2026!`
@@ -85,6 +100,12 @@ La confirmación inicial de correo al crear una junta pertenece a Supabase Auth.
 Presidencia conecta la cuenta Mercado Pago de la junta desde Tesorería usando OAuth con PKCE. Los tokens quedan cifrados en `mercadopago_junta_accounts` y no son accesibles para clientes autenticados. Presidencia o Tesorería definen el monto mensual por domicilio. Todos los socios que comparten una dirección usan la misma cuota mensual: un pago deja al día al hogar completo y crea un único ingreso auditable en el libro de caja. Pagos manuales, reembolsos, rechazos y webhooks de Mercado Pago conservan la misma asociación al domicilio.
 
 Las direcciones se normalizan dentro de PostgreSQL antes de asignar el domicilio. Se ignoran mayúsculas, tildes, puntuación, espacios, símbolos de número y variantes habituales como `Avenida`/`Av.`, `Pasaje`/`Pje.`, `Departamento`/`Dpto.` o `Camino`/`Cno.`. Una restricción única evita duplicados aun bajo solicitudes concurrentes y un trigger impide asociar manualmente un socio a un domicilio incompatible con su dirección.
+
+### Vigencia del monto de cuotas
+
+Los cambios de monto rigen desde el mes actual en Chile. La migración `20261014000000_due_amount_effective_periods.sql` registra su vigencia y corrige cuotas pendientes actuales y futuras que quedaron desactualizadas. Los períodos anteriores, los pagos y los cobros abiertos conservan sus montos. Tesorería y los nuevos checkouts consultan el monto de cada período; los comprobantes usan el total registrado del lote.
+
+`npm run test:due-rates` comprueba la presentación y los límites de fecha. `npm run test:dues:db`, con `DUE_TEST_DATABASE_URL` hacia un PostgreSQL de pruebas, verifica la migración y los pagos en una base temporal aislada.
 
 ### Conciliación automática de Tesorería
 

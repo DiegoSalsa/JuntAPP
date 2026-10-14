@@ -1,4 +1,4 @@
-/** Returns the first day of the current billing month in Chile. */
+/** Returns the current billing year and month (YYYY-MM) in Chile. */
 export function currentChileBillingPeriod(date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit' }).formatToParts(date);
   const year = parts.find((part) => part.type === 'year')?.value;
