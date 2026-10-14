@@ -6,3 +6,8 @@ export function currentChileBillingPeriod(date = new Date()): string {
   if (!year || !month) throw new Error('No fue posible calcular el período de cuotas.');
   return `${year}-${month}`;
 }
+
+/** Returns the first day of the current billing month as a PostgreSQL date. */
+export function currentChileBillingPeriodStart(date = new Date()): string {
+  return `${currentChileBillingPeriod(date)}-01`;
+}

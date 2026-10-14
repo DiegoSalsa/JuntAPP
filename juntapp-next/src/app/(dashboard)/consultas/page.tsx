@@ -28,15 +28,20 @@ export default async function ConsultasPage() {
     .eq('junta_id', profile?.junta_id)
     .order('created_at', { ascending: false });
 
-  const enrichedPolls = await Promise.all((polls || []).map(async (poll) => {
-    const [{ data: results }, { data: participation }] = await Promise.all([
-      supabase.rpc('poll_results', { p_poll_id: poll.id }),
-      supabase.rpc('has_poll_participated', { p_poll_id: poll.id }),
-    ]);
-    const counts = new Map((results ?? []).map((row: { option_id: string; votes: number }) => [row.option_id, Number(row.votes)]));
-    const options = (poll.options as { id: string; text: string }[]).map((option) => ({ ...option, votes: counts.get(option.id) ?? 0 }));
-    return { ...poll, options, hasVoted: Boolean(participation) };
-  }));
+  const { data: pollOverview, error: pollOverviewError } = await supabase.rpc('poll_overview');
+  if (pollOverviewError) console.error('[consultas] No fue posible obtener el resumen de votaciones', pollOverviewError);
+  const overviewByPoll = new Map<string, { counts: Map<string, number>; hasVoted: boolean }>();
+  for (const row of pollOverview ?? []) {
+    const current = overviewByPoll.get(row.poll_id) ?? { counts: new Map<string, number>(), hasVoted: false };
+    current.counts.set(row.option_id, Number(row.votes ?? 0));
+    current.hasVoted = current.hasVoted || Boolean(row.has_voted);
+    overviewByPoll.set(row.poll_id, current);
+  }
+  const enrichedPolls = (polls || []).map((poll) => {
+    const overview = overviewByPoll.get(poll.id) ?? { counts: new Map<string, number>(), hasVoted: false };
+    const options = (poll.options as { id: string; text: string }[]).map((option) => ({ ...option, votes: overview.counts.get(option.id) ?? 0 }));
+    return { ...poll, options, hasVoted: overview.hasVoted };
+  });
 
   return <VotacionesClient polls={enrichedPolls} currentProfile={profile!} proposals={proposals ?? []} />;
 }

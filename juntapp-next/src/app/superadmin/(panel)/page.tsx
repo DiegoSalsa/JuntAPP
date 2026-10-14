@@ -51,36 +51,37 @@ export default async function SuperadminDashboard() {
 
   const [
     juntasResult,
-    profilesResult,
-    transactionsResult,
-    duesResult,
+    memberCountsResult,
+    treasuryResult,
+    duesSummaryResult,
     applicationsResult,
     proposalsResult,
   ] = await Promise.all([
     admin.from('juntas').select('id, name, comuna, region, subscription_status, subscription_plan, subscription_price, billing_mode, created_at').order('created_at', { ascending: false }),
-    admin.from('profiles').select('id, junta_id, role, cuota_status, created_at'),
-    admin.from('transactions').select('junta_id, type, amount, date').gte('date', monthStart.toISOString().slice(0, 10)),
-    admin.from('member_dues').select('amount, status, paid_at').eq('status', 'paid').gte('paid_at', monthStart.toISOString()),
+    admin.rpc('superadmin_member_counts'),
+    admin.rpc('superadmin_treasury_summary', { p_from_date: monthStart.toISOString().slice(0, 10), p_to_date: null }),
+    admin.rpc('superadmin_due_summary', { p_from_date: monthStart.toISOString() }),
     admin.from('membership_applications').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     admin.from('poll_proposals').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
   ]);
 
   const juntas = (juntasResult.data ?? []) as JuntaRow[];
-  const profiles = profilesResult.data ?? [];
-  const transactions = transactionsResult.data ?? [];
-  const dues = duesResult.data ?? [];
+  const memberCounts = (memberCountsResult.data ?? []) as { junta_id: string; members: number | string; leaders: number | string }[];
+  const treasury = (treasuryResult.data?.[0] ?? {}) as { income?: number | string; expenses?: number | string };
+  const duesSummary = (duesSummaryResult.data?.[0] ?? {}) as { collected?: number | string };
   const activeJuntas = juntas.filter((junta) => junta.subscription_status === 'authorized');
   const billableJuntas = activeJuntas.filter((junta) => junta.billing_mode === 'subscription');
   const trialJuntas = activeJuntas.filter((junta) => junta.billing_mode === 'trial_then_subscription');
   const attentionJuntas = juntas.filter((junta) => ['pending', 'past_due'].includes(junta.subscription_status));
   const mrr = billableJuntas.reduce((sum, junta) => sum + Number(junta.subscription_price || 0), 0);
   const newJuntas = juntas.filter((junta) => new Date(junta.created_at) >= weekStart).length;
-  const leaders = profiles.filter((profile) => profile.role === 'dirigente').length;
-  const collectedDues = dues.reduce((sum, due) => sum + Number(due.amount || 0), 0);
-  const income = transactions.filter((row) => row.type === 'ingreso').reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const expenses = transactions.filter((row) => row.type === 'egreso').reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const totalMembers = memberCounts.reduce((sum, row) => sum + Number(row.members || 0), 0);
+  const leaders = memberCounts.reduce((sum, row) => sum + Number(row.leaders || 0), 0);
+  const collectedDues = Number(duesSummary.collected || 0);
+  const income = Number(treasury.income || 0);
+  const expenses = Number(treasury.expenses || 0);
   const membersByJunta = new Map<string, number>();
-  for (const profile of profiles) membersByJunta.set(profile.junta_id, (membersByJunta.get(profile.junta_id) ?? 0) + 1);
+  for (const row of memberCounts) membersByJunta.set(row.junta_id, Number(row.members || 0));
   const topJuntas = [...juntas]
     .sort((a, b) => (membersByJunta.get(b.id) ?? 0) - (membersByJunta.get(a.id) ?? 0))
     .slice(0, 5);
@@ -88,7 +89,7 @@ export default async function SuperadminDashboard() {
   const cards = [
     { label: 'MRR estimado', value: money(mrr), detail: `${billableJuntas.length} suscripciones con cobro`, icon: FiDollarSign, color: 'bg-[#bffcc6]' },
     { label: 'Juntas activas', value: activeJuntas.length, detail: `${trialJuntas.length} con meses gratis`, icon: FiHome, color: 'bg-[#9ee7ff]' },
-    { label: 'Usuarios', value: profiles.length, detail: `${leaders} integrantes de directiva`, icon: FiUsers, color: 'bg-[#ffb5e8]' },
+    { label: 'Usuarios', value: totalMembers, detail: `${leaders} integrantes de directiva`, icon: FiUsers, color: 'bg-[#ffb5e8]' },
     { label: 'Requieren atención', value: attentionJuntas.length, detail: `${applicationsResult.count ?? 0} solicitudes pendientes`, icon: FiAlertTriangle, color: 'bg-[#fff4a3]' },
   ];
 

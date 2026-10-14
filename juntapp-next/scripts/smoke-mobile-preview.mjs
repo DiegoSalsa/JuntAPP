@@ -39,9 +39,9 @@ async function smoke(browserType, label, viewport, mobile) {
     assert.ok(overflow <= 2, `${label}: horizontal overflow ${overflow}px`);
     if (mobile) {
       await page.getByRole('button', { name: 'Abrir menú' }).click();
-      await page.getByRole('navigation', { name: 'Menú principal' }).getByRole('link', { name: 'Anuncios Oficiales' }).click();
+      await page.getByRole('navigation', { name: 'Menú principal' }).getByRole('link', { name: 'Avisos', exact: true }).click();
     } else {
-      await page.locator('.sidebar-nav').getByRole('link', { name: 'Anuncios Oficiales' }).click();
+      await page.locator('.sidebar-nav').getByRole('link', { name: 'Avisos', exact: true }).click();
     }
     await page.waitForURL('**/comunicaciones');
     assert.equal(await page.locator('.app-layout').isVisible(), true);

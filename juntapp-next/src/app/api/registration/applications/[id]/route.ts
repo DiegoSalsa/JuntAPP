@@ -25,7 +25,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { data: reviewer } = await supabase.from('profiles').select('id, junta_id, role, board_position').eq('id', user.id).single();
   if (!reviewer) return NextResponse.json({ error: 'No encontramos tu perfil en la directiva.' }, { status: 403 });
   const [{ data: designatedSecretary }, { data: reviewerJunta }] = await Promise.all([
-    admin.from('profiles').select('id').eq('junta_id', reviewer.junta_id).eq('role', 'dirigente').eq('board_position', 'secretario').maybeSingle(),
+    admin.from('profiles').select('id').eq('junta_id', reviewer.junta_id).eq('role', 'dirigente').eq('board_position', 'secretario').eq('membership_status', 'active').maybeSingle(),
     admin.from('juntas').select('owner_id').eq('id', reviewer.junta_id).maybeSingle(),
   ]);
   if (!canReviewMembershipApplications(reviewer, Boolean(designatedSecretary), reviewerJunta?.owner_id ?? null)) {

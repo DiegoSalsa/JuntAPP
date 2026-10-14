@@ -10,6 +10,8 @@ const psql = process.env.DUE_TEST_PSQL || 'psql';
 const adminUrl = process.env.DUE_TEST_DATABASE_URL;
 
 if (!adminUrl) {
+  const rateOutput = run(['-v', 'ON_ERROR_STOP=1', '-f', path.join(root, 'scripts', 'test-due-rates.sql')], undefined, databaseUrl);
+  assert.match(rateOutput, /due rate effective-period regression checks passed/);
   console.log('DUE_TEST_DB_RESULT=SKIPPED reason=missing_DUE_TEST_DATABASE_URL');
   process.exit(0);
 }
@@ -46,8 +48,8 @@ try {
   }
   const output = run(['-v', 'ON_ERROR_STOP=1', '-f', path.join(root, 'scripts', 'test-due-payment-batches.sql')], undefined, databaseUrl);
   assert.match(output, /due payment PostgreSQL integration checks passed/);
-  const rateOutput = run(['-v', 'ON_ERROR_STOP=1', '-f', path.join(root, 'scripts', 'test-due-rates.sql')], undefined, databaseUrl);
-  assert.match(rateOutput, /due rate effective-period regression checks passed/);
+  assert.match(output, /roster and due history role isolation checks passed/);
+  assert.match(output, /dashboard aggregate PostgreSQL integration checks passed/);
   console.log('DUE_TEST_DB_RESULT=PASSED isolated_database=true');
 } finally {
   run(['-v', 'ON_ERROR_STOP=1', '-c', `DROP DATABASE IF EXISTS "${dbName}"`]);

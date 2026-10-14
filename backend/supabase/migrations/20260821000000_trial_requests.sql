@@ -31,6 +31,8 @@ CREATE INDEX idx_trial_requests_email
   ON public.trial_requests (lower(email));
 
 ALTER TABLE public.trial_requests ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.trial_requests FROM anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.trial_requests TO service_role;
 
 COMMENT ON TABLE public.trial_requests IS
   'Public requests for a personalized one-month JuntAPP trial, managed by Superadmin.';

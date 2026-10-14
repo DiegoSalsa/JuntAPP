@@ -11,28 +11,14 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import type { Transaction } from '@/lib/types';
+import type { TreasuryMonthlySummary } from '@/lib/treasury';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
-export default function CashflowChart({ transactions }: { transactions: Transaction[] }) {
+export default function CashflowChart({ summaries, error }: { summaries: TreasuryMonthlySummary[]; error?: string | null }) {
   const chartData = useMemo(() => {
-    const months: Record<string, { income: number; expenses: number }> = {};
-
-    transactions.forEach((tx) => {
-      const kind = tx.accounting_kind ?? (tx.type === 'ingreso' ? 'income' : 'expense');
-      if (kind === 'transfer') return;
-      const month = tx.date.slice(0, 7); // YYYY-MM
-      if (!months[month]) months[month] = { income: 0, expenses: 0 };
-      if (kind === 'income') {
-        months[month].income += Number(tx.gross_amount ?? tx.amount);
-        months[month].expenses += Number(tx.fee_amount ?? 0);
-      } else {
-        months[month].expenses += Math.abs(Number(tx.net_amount ?? tx.amount));
-      }
-    });
-
-    const sortedMonths = Object.keys(months).sort();
+    const summaryByMonth = new Map(summaries.map((summary) => [summary.month_start.slice(0, 7), summary]));
+    const sortedMonths = [...summaryByMonth.keys()].sort();
     const labels = sortedMonths.map((m) => {
       const [year, month] = m.split('-');
       const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -44,19 +30,19 @@ export default function CashflowChart({ transactions }: { transactions: Transact
       datasets: [
         {
           label: 'Ingresos',
-          data: sortedMonths.map((m) => months[m].income),
+          data: sortedMonths.map((month) => summaryByMonth.get(month)?.income ?? 0),
           backgroundColor: 'hsl(145, 63%, 42%)',
           borderRadius: 6,
         },
         {
           label: 'Egresos',
-          data: sortedMonths.map((m) => months[m].expenses),
+          data: sortedMonths.map((month) => summaryByMonth.get(month)?.expenses ?? 0),
           backgroundColor: 'hsl(354, 70%, 46%)',
           borderRadius: 6,
         },
       ],
     };
-  }, [transactions]);
+  }, [summaries]);
 
   const options = {
     responsive: true,
@@ -85,7 +71,8 @@ export default function CashflowChart({ transactions }: { transactions: Transact
     },
   };
 
-  if (transactions.length === 0) {
+  if (error) return <div className="chart-empty">{error}</div>;
+  if (summaries.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-sm text-gray-500">
         No hay datos para mostrar el gráfico.

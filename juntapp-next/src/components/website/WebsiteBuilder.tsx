@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { normalizeWebsiteContent, normalizeWebsiteTheme, readableColor, websiteImageUrl, WEBSITE_PALETTES, WEBSITE_TEMPLATES, type WebsiteContent, type WebsiteNewsItem, type WebsiteTemplate, type WebsiteTheme } from '@/lib/website';
 import WebsitePreview from './WebsitePreview';
 
-type PageData = { template?: WebsiteTemplate; content?: Partial<WebsiteContent>; theme?: Partial<WebsiteTheme>; logo_url?: string | null; hero_image_url?: string | null; gallery?: string[]; published?: boolean } | null;
+type PageData = { template?: WebsiteTemplate; content?: Partial<WebsiteContent>; theme?: Partial<WebsiteTheme>; logo_url?: string | null; hero_image_url?: string | null; gallery?: string[]; published?: boolean; draft_template?: WebsiteTemplate | null; draft_content?: Partial<WebsiteContent> | null; draft_theme?: Partial<WebsiteTheme> | null; draft_logo_url?: string | null; draft_hero_image_url?: string | null; draft_gallery?: string[] | null } | null;
 type Draft = { template: WebsiteTemplate; content: WebsiteContent; theme: WebsiteTheme; logo: string; hero: string; gallery: string[] };
 type Tab = 'design' | 'content' | 'news' | 'media';
 const tabs = [{ id: 'design', label: 'Diseño', Icon: FiLayout }, { id: 'content', label: 'Textos', Icon: FiEdit3 }, { id: 'news', label: 'Noticias', Icon: FiPlus }, { id: 'media', label: 'Imágenes', Icon: FiImage }] as const;
@@ -35,12 +35,18 @@ async function convertToWebP(file: File, maxDimension: number) {
 }
 
 export default function WebsiteBuilder({ juntaId, juntaName, slug, plan, initial }: { juntaId: string; juntaName: string; slug: string; plan: 'web' | 'juntapp_web'; initial: PageData }) {
-  const [draft, setDraft] = useState<Draft>(() => ({
-    template: WEBSITE_TEMPLATES.some((item) => item.id === initial?.template) ? initial!.template! : 'comunidad',
-    content: normalizeWebsiteContent(initial?.content), theme: normalizeWebsiteTheme(initial?.theme ?? WEBSITE_PALETTES[0].colors),
-    logo: websiteImageUrl(initial?.logo_url), hero: websiteImageUrl(initial?.hero_image_url),
-    gallery: (initial?.gallery ?? []).map(websiteImageUrl).filter(Boolean).slice(0, 6),
-  }));
+  const [draft, setDraft] = useState<Draft>(() => {
+    const hasDraft = initial?.draft_content != null;
+    const template = initial?.draft_template ?? initial?.template;
+    return {
+      template: WEBSITE_TEMPLATES.some((item) => item.id === template) ? template! : 'comunidad',
+      content: normalizeWebsiteContent(initial?.draft_content ?? initial?.content),
+      theme: normalizeWebsiteTheme(initial?.draft_theme ?? initial?.theme ?? WEBSITE_PALETTES[0].colors),
+      logo: websiteImageUrl(hasDraft ? initial?.draft_logo_url : initial?.logo_url),
+      hero: websiteImageUrl(hasDraft ? initial?.draft_hero_image_url : initial?.hero_image_url),
+      gallery: (initial?.draft_gallery ?? initial?.gallery ?? []).map(websiteImageUrl).filter(Boolean).slice(0, 6),
+    };
+  });
   const [savedDraft, setSavedDraft] = useState(draft);
   const [hasSaved, setHasSaved] = useState(Boolean(initial));
   const [published, setPublished] = useState(initial?.published ?? false);
@@ -121,13 +127,16 @@ export default function WebsiteBuilder({ juntaId, juntaName, slug, plan, initial
     const nextPublished = mode === 'unpublish' ? false : mode === 'publish' ? true : published;
     try {
       const supabase = createClient();
+      const payload: NonNullable<PageData> & { junta_id: string; published: boolean; updated_at: string } = mode === 'draft'
+        ? { junta_id: juntaId, published: nextPublished, updated_at: new Date().toISOString(), draft_template: template, draft_content: content, draft_theme: theme, draft_logo_url: logo || null, draft_hero_image_url: hero || null, draft_gallery: gallery }
+        : { junta_id: juntaId, template, content, theme, logo_url: logo || null, hero_image_url: hero || null, gallery, published: nextPublished, updated_at: new Date().toISOString(), draft_template:null, draft_content:null, draft_theme:null, draft_logo_url:null, draft_hero_image_url:null, draft_gallery:null };
       const { error } = mode === 'unpublish'
         ? await supabase.from('website_pages').update({ published: nextPublished, updated_at: new Date().toISOString() }).eq('junta_id', juntaId)
-        : await supabase.from('website_pages').upsert({ junta_id: juntaId, template, content, theme, logo_url: logo || null, hero_image_url: hero || null, gallery, published: nextPublished, updated_at: new Date().toISOString() }, { onConflict: 'junta_id' });
+        : await supabase.from('website_pages').upsert(payload, { onConflict: 'junta_id', defaultToNull:false });
       if (error) throw error;
       setPublished(nextPublished); setConfirmUnpublish(false);
       if (mode !== 'unpublish') { setSavedDraft(draft); setHasSaved(true); }
-      setMessage({ text: mode === 'unpublish' ? 'Página despublicada. Su contenido está conservado.' : nextPublished ? 'Cambios guardados. Tu página está publicada.' : 'Borrador guardado. Puedes seguir editando antes de publicar.' });
+      setMessage({ text: mode === 'unpublish' ? 'Página despublicada. Su contenido está conservado.' : mode === 'draft' ? 'Borrador guardado. La publicación conserva su contenido hasta que publiques los cambios.' : 'Cambios guardados. Tu página está publicada.' });
       // Announcements are separate from saving: only this explicit action sends one.
       if (mode === 'publish') {
         try {
@@ -142,7 +151,7 @@ export default function WebsiteBuilder({ juntaId, juntaName, slug, plan, initial
 
   return <div className="builder-shell">
     <header className="builder-top"><div><div className="builder-eyebrow">TU COMUNIDAD EN INTERNET <span>{plan === 'web' ? 'Plan Web' : 'JuntAPP + Web'}</span></div><h1>Mi página web</h1><p>{juntaName}</p></div><div className="builder-top-right"><span className={`builder-publication-state ${published ? 'is-live' : ''}`}><i />{published ? 'Publicada' : 'Borrador'}</span>{published && <a href={url} target="_blank" rel="noopener noreferrer">Visitar sitio <FiArrowUpRight aria-hidden="true" /></a>}</div></header>
-    <div className="builder-savebar"><div className="builder-save-state"><span className={dirty ? 'unsaved' : ''}><i />{saving ? 'Guardando…' : uploading ? 'Subiendo imagen…' : dirty ? 'Cambios sin guardar' : hasSaved ? 'Todos los cambios guardados' : 'Tu página está lista para personalizar'}</span><small>{published ? 'Al guardar, los cambios se muestran en tu sitio publicado.' : 'Tu página será visible cuando la publiques.'}</small></div><div className="builder-actions">{dirty && <button type="button" className="builder-reset" disabled={busy} onClick={() => { setDraft(savedDraft); setMessage(null); }}>Deshacer cambios</button>}<button type="button" disabled={busy || (!dirty && hasSaved)} onClick={() => void save('draft')}><FiSave aria-hidden="true" />{published ? 'Guardar cambios' : 'Guardar borrador'}</button><button type="button" className="publish" disabled={busy} onClick={() => void save('publish')}>{published ? 'Publicar y avisar' : 'Publicar página'}<FiArrowUpRight aria-hidden="true" /></button></div></div>
+    <div className="builder-savebar"><div className="builder-save-state"><span className={dirty ? 'unsaved' : ''}><i />{saving ? 'Guardando…' : uploading ? 'Subiendo imagen…' : dirty ? 'Cambios sin guardar' : hasSaved ? 'Todos los cambios guardados' : 'Tu página está lista para personalizar'}</span><small>{published ? 'Guarda un borrador y publica cuando esté listo.' : 'Tu página será visible cuando la publiques.'}</small></div><div className="builder-actions">{dirty && <button type="button" className="builder-reset" disabled={busy} onClick={() => { setDraft(savedDraft); setMessage(null); }}>Deshacer cambios</button>}<button type="button" disabled={busy || (!dirty && hasSaved)} onClick={() => void save('draft')}><FiSave aria-hidden="true" />Guardar borrador</button><button type="button" className="publish" disabled={busy} onClick={() => void save('publish')}>{published ? 'Publicar y avisar' : 'Publicar página'}<FiArrowUpRight aria-hidden="true" /></button></div></div>
     {message && <div className={`builder-message ${message.error ? 'is-error' : ''}`} role={message.error ? 'alert' : 'status'}><span>{message.text}</span><button type="button" aria-label="Cerrar mensaje" onClick={() => setMessage(null)}><FiX /></button></div>}
     <div className="builder-workspace">
       <aside className="builder-panel" aria-label="Editor del sitio"><div className="builder-tabs" role="tablist" aria-label="Secciones del editor">{tabs.map(({ id, label, Icon }) => <button type="button" role="tab" id={`builder-tab-${id}`} aria-selected={tab === id} aria-controls="builder-tab-panel" className={tab === id ? 'active' : ''} onClick={() => setTab(id)} key={id}><Icon aria-hidden="true" /><span>{label}</span></button>)}</div>

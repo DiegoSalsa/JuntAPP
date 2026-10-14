@@ -19,7 +19,7 @@ La aplicación queda disponible en `http://localhost:3000`.
 
 `/mi-pagina` ofrece once plantillas con distintas composiciones, cinco paletas y una vista previa independiente de escritorio (1280 px), tablet (768 px) y móvil (390 px). Cambiar el diseño conserva textos, noticias y fotografías. La portada incluye una ilustración cuando todavía no se ha subido una imagen.
 
-Antes de publicar, **Guardar borrador** conserva la página privada. En un sitio publicado, **Guardar cambios** actualiza el contenido público y mantiene la publicación activa. **Publicar y avisar** guarda y prepara una notificación para la comunidad. **Despublicar página** solo cambia la visibilidad y conserva el contenido guardado. Los cambios pendientes se indican en el editor y generan un aviso al cerrar o recargar la pestaña.
+Antes de publicar, **Guardar borrador** conserva la página privada. En un sitio publicado, **Guardar borrador** conserva la edición separada de la publicación; los vecinos siguen viendo el contenido publicado hasta que se publiquen los cambios. **Publicar y avisar** guarda y prepara una notificación para la comunidad. **Despublicar página** solo cambia la visibilidad y conserva el contenido guardado. Los cambios pendientes se indican en el editor y generan un aviso al cerrar o recargar la pestaña.
 
 Las fotografías se optimizan a WebP antes de subirlas. El editor admite seis imágenes de galería y doce noticias; impide guardar noticias sin título o contenido y permite reintentar guardados fallidos sin perder la edición.
 

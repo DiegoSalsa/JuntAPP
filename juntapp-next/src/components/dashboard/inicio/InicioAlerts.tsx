@@ -63,6 +63,7 @@ export default function InicioAlerts({ urgent, isDirigente }: { urgent?: string;
   const [platform, setPlatform] = useState<Platform>('unknown');
   const [key, setKey] = useState('');
   const [guideOpen, setGuideOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [status, setStatus] = useState<DeliveryStatus>({});
   const [centerMessage, setCenterMessage] = useState('');
   const [retrying, setRetrying] = useState<string | null>(null);
@@ -89,6 +90,7 @@ export default function InicioAlerts({ urgent, isDirigente }: { urgent?: string;
       setPlatform(detectedPlatform);
       setInstalled(detectedInstalled);
       setKey(detectedKey);
+      setDetailsOpen(detectedInstalled || detectedPlatform === 'ios');
       if (window.__juntAppInstallPrompt) setInstallPrompt(window.__juntAppInstallPrompt);
     });
 
@@ -251,16 +253,28 @@ export default function InicioAlerts({ urgent, isDirigente }: { urgent?: string;
   const installLabel = installed ? 'Instalada' : platform === 'ios' ? 'Ver guía visual' : installPrompt ? 'Instalar JuntAPP' : 'Cómo instalar';
   const pushLabel = pushState === 'subscribed' ? 'Activadas' : pushState === 'denied' ? 'Bloqueadas' : 'Activar notificaciones';
   const coverage = useMemo(() => status.organization?.members ? Math.round((status.organization.subscribedUsers / status.organization.members) * 100) : 0, [status.organization]);
+  const contextStatus = pushState === 'unsupported'
+    ? 'Este navegador no permite notificaciones push.'
+    : pushState === 'ios-install'
+      ? 'Instala la app para activar los avisos en iPhone.'
+      : pushState === 'subscribed'
+        ? 'Este dispositivo ya está listo para recibir avisos.'
+        : pushState === 'denied'
+          ? 'Las notificaciones están bloqueadas en este navegador.'
+          : pushState === 'error'
+            ? 'No pudimos comprobar el estado; puedes intentarlo de nuevo.'
+            : 'Recibe avisos importantes sin mantener JuntAPP abierta.';
+  const showDetails = detailsOpen || pushState === 'unsupported';
 
   return <>
     {showUrgent && urgent && <div className="alert-banner"><div className="alert-icon">!</div><div className="alert-content"><strong>AVISO URGENTE:</strong> {urgent}</div><button className="alert-close" onClick={() => setShowUrgent(false)} aria-label="Cerrar alerta">×</button></div>}
 
-    <section className="notification-center shadow-box" aria-labelledby="notification-center-title">
-      <header className="notification-center-head"><div><span className="notification-center-kicker">JuntAPP en tu bolsillo</span><h3 id="notification-center-title">Instalación y notificaciones</h3><p>Instala una vez y recibe los avisos oficiales aunque JuntAPP esté cerrada.</p></div><span className={`notification-health ${pushState === 'subscribed' ? 'active' : ''}`}><i />{pushState === 'subscribed' ? 'Este dispositivo está conectado' : 'Falta completar la activación'}</span></header>
-      <div className="notification-setup-grid">
+    <section className={`notification-center shadow-box ${showDetails ? 'details-open' : 'details-compact'}`} aria-labelledby="notification-center-title">
+      <header className="notification-center-head"><div><span className="notification-center-kicker">JuntAPP en tu bolsillo</span><h3 id="notification-center-title">Instalación y notificaciones</h3><p>{contextStatus}</p></div><div className="notification-center-head-actions"><span className={`notification-health ${pushState === 'subscribed' ? 'active' : ''}`}><i />{pushState === 'subscribed' ? 'Conectado' : installed ? 'Instalada' : 'Pendiente'}</span><button type="button" className="notification-details-toggle" onClick={() => setDetailsOpen((open) => !open)} aria-expanded={showDetails}>{showDetails ? 'Ocultar detalles' : 'Ver opciones'}</button></div></header>
+      {showDetails && <div className="notification-setup-grid">
         <article className={`setup-card ${installed ? 'complete' : ''}`}><div className="setup-card-icon"><InstallIcon /></div><div className="setup-card-copy"><span className="setup-eyebrow">Acceso rápido</span><h4>Instala JuntAPP</h4><p>{installed ? 'Se abre como una app y ya está disponible desde tu pantalla de inicio.' : platform === 'ios' ? 'Te mostramos visualmente dónde tocar en tu iPhone o iPad.' : 'Ábrela como una app, sin escribir la dirección cada vez.'}</p></div><button className={`btn ${installed ? 'btn-ghost' : 'btn-primary'}`} disabled={installed} onClick={() => void installApp()}>{installed ? '✓ Instalada' : installLabel}</button></article>
         <article className={`setup-card ${pushState === 'subscribed' ? 'complete' : ''}`}><div className="setup-card-icon"><BellIcon /></div><div className="setup-card-copy"><span className="setup-eyebrow">Avisos oficiales</span><h4>Activa las notificaciones</h4><p>{pushState === 'subscribed' ? 'Recibirás comunicados, consultas, asambleas y novedades de tu junta.' : pushState === 'unsupported' ? 'Las notificaciones no son compatibles con este navegador. Puedes seguir usando JuntAPP normalmente.' : pushState === 'ios-install' ? 'En iPhone se activan después de instalar JuntAPP.' : pushState === 'denied' ? 'El navegador las bloqueó; debes habilitarlas en la configuración del sitio.' : 'Tú decides: el permiso solo se solicita cuando presionas el botón.'}</p></div>{pushState === 'subscribed' ? <button className="btn btn-ghost" onClick={() => void deactivateNotifications()}>Desactivar aquí</button> : <button className="btn btn-primary" disabled={['checking', 'unsupported', 'unconfigured', 'ios-install'].includes(pushState)} onClick={() => void activateNotifications()}>{pushLabel}</button>}</article>
-      </div>
+      </div>}
       {centerMessage && <p className="notification-center-message" role="status">{centerMessage}</p>}
 
       {isDirigente && status.organization && <div className="delivery-dashboard"><div className="delivery-dashboard-head"><div><span className="setup-eyebrow">Vista de la directiva</span><h4>Cobertura de avisos</h4></div><strong>{coverage}% con push activo</strong></div><div className="delivery-metrics"><div><b>{status.organization.members}</b><span>vecinos</span></div><div><b>{status.organization.installedUsers}</b><span>instalaron la app</span></div><div><b>{status.organization.subscribedUsers}</b><span>activaron push</span></div><div><b>{status.organization.healthySubscriptions}</b><span>dispositivos sanos</span></div></div>{Boolean(status.jobs?.length) && <div className="delivery-jobs"><h5>Últimos envíos</h5>{status.jobs?.slice(0, 5).map((job) => <div className="delivery-job" key={job.id}><div><strong>{job.title}</strong><span>{job.delivered_count}/{job.subscription_count} dispositivos · {job.attempts} intento(s)</span></div><span className={`delivery-status ${job.status}`}>{job.status === 'delivered' ? 'Entregado' : job.status === 'processing' ? 'Enviando' : job.status === 'pending' ? 'Pendiente' : job.status === 'partial' ? 'Reintentará' : 'Falló'}</span>{['partial', 'failed'].includes(job.status) && <button className="btn btn-sm btn-ghost" disabled={retrying === job.id} onClick={() => void retryJob(job.id)}>{retrying === job.id ? 'Reintentando…' : 'Reintentar'}</button>}</div>)}</div>}</div>}

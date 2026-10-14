@@ -1,10 +1,10 @@
 'use client';
 
-import { currentChileBillingPeriod } from '@/lib/billing-period';
+import { currentChileBillingPeriod, currentChileBillingPeriodStart } from '@/lib/billing-period';
 import { dueAmountForPeriod, type MonthlyDueRate } from '@/lib/due-rates';
 import { useMemo, useState } from 'react';
-import { calculateTreasuryStats } from '@/lib/treasury';
-import { useRouter } from 'next/navigation';
+import type { TreasuryExpenseBreakdown, TreasuryMonthlySummary, TreasuryStats } from '@/lib/treasury';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { Junta, MemberDue, MercadoPagoConnectionSummary, Profile, Transaction, TreasuryDocument, TreasurySyncStatus } from '@/lib/types';
@@ -13,11 +13,12 @@ import ExpenseChart from './ExpenseChart';
 
 type PaymentBatchSummary = { id: string; total_amount: number | string; status: string; payment_source: string | null; mercadopago_payment_id: string | null; created_at: string; confirmed_at: string | null; due_payment_batch_items?: { period: string; amount: number | string }[] };
 
-export default function TesoreriaClient({ transactions, documents, currentProfile, junta, currentDue, dueHistory, dueRates, householdCreatedAt, paymentBatches, paymentReturn, connectionReturn, mercadoPagoConnection, treasurySyncStatus, totalHouseholds, paidHouseholds }: { transactions: Transaction[]; documents: TreasuryDocument[]; currentProfile: Profile; junta: Junta; currentDue: MemberDue | null; dueHistory: MemberDue[]; dueRates: MonthlyDueRate[]; householdCreatedAt: string | null; paymentBatches: PaymentBatchSummary[]; paymentReturn: string | null; connectionReturn: string | null; mercadoPagoConnection: MercadoPagoConnectionSummary; treasurySyncStatus: TreasurySyncStatus; totalHouseholds: number; paidHouseholds: number }) {
+export default function TesoreriaClient({ transactions, transactionSummary, monthlySummary, expenseBreakdown, treasuryAggregateError, transactionPage, transactionPageSize, transactionTotal, transactionFilters, documents, currentProfile, junta, currentDue, dueHistory, dueRates, householdCreatedAt, paymentBatches, paymentReturn, connectionReturn, mercadoPagoConnection, treasurySyncStatus, totalHouseholds, paidHouseholds, dueCountError, now }: { transactions: Transaction[]; transactionSummary: TreasuryStats | null; monthlySummary: TreasuryMonthlySummary[]; expenseBreakdown: TreasuryExpenseBreakdown[]; treasuryAggregateError: string | null; transactionPage: number; transactionPageSize: number; transactionTotal: number; transactionFilters: { type: string; source: string; from: string; to: string }; documents: TreasuryDocument[]; currentProfile: Profile; junta: Junta; currentDue: MemberDue | null; dueHistory: MemberDue[]; dueRates: MonthlyDueRate[]; householdCreatedAt: string | null; paymentBatches: PaymentBatchSummary[]; paymentReturn: string | null; connectionReturn: string | null; mercadoPagoConnection: MercadoPagoConnectionSummary; treasurySyncStatus: TreasurySyncStatus; totalHouseholds: number; paidHouseholds: number; dueCountError: string | null; now: string }) {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [documentLoading, setDocumentLoading] = useState(false);
   const [documentError, setDocumentError] = useState('');
+  const [transactionError, setTransactionError] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [mercadoPagoMessage, setMercadoPagoMessage] = useState('');
@@ -29,17 +30,16 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
   const [syncMessage, setSyncMessage] = useState('');
   const [selectedPeriods, setSelectedPeriods] = useState<string[]>(() => currentDue?.status === 'paid' ? [] : [`${currentChileBillingPeriod()}-01`]);
   const [calendarYear, setCalendarYear] = useState(() => Number(currentChileBillingPeriod().slice(0, 4)));
+  const nowMs = Date.parse(now);
   const router = useRouter();
+  const pathname = usePathname();
+  const currentSearchParams = useSearchParams();
   const isDirigente = currentProfile.role === 'dirigente';
   const canConnectMercadoPago = isDirigente && (junta.owner_id === currentProfile.id || currentProfile.board_position === 'presidente');
   const canEditDueAmount = isDirigente && ['presidente', 'tesorero'].includes(currentProfile.board_position ?? '');
   const currentDuePaid = currentDue?.status === 'paid';
-  const stats = useMemo(() => calculateTreasuryStats(transactions), [transactions]);
-  const currentMonthTransactions = useMemo(() => {
-    const month = currentChileBillingPeriod();
-    return transactions.filter((transaction) => transaction.date.startsWith(month));
-  }, [transactions]);
-  const monthlyStats = useMemo(() => calculateTreasuryStats(currentMonthTransactions), [currentMonthTransactions]);
+  const stats = transactionSummary;
+  const currentMonthSummary = useMemo(() => monthlySummary.find((summary) => summary.month_start === currentChileBillingPeriodStart()) ?? null, [monthlySummary]);
   const yearOptions = useMemo(() => {
     const currentYear = Number(currentChileBillingPeriod().slice(0, 4));
     const incorporationYear = householdCreatedAt ? Number(householdCreatedAt.slice(0, 4)) : currentYear;
@@ -48,9 +48,39 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
   }, [dueHistory, householdCreatedAt]);
 
   async function handleAddTransaction(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setLoading(true); const form = new FormData(event.currentTarget);
-    const { error } = await createClient().from('transactions').insert({ type: form.get('type'), description: form.get('description'), amount: Number(form.get('amount')), date: form.get('date'), junta_id: currentProfile.junta_id, created_by: currentProfile.id });
-    if (!error) { setShowModal(false); router.refresh(); } setLoading(false);
+    event.preventDefault();
+    setLoading(true);
+    setTransactionError('');
+    const form = new FormData(event.currentTarget);
+    try {
+      const { error } = await createClient().from('transactions').insert({ type: form.get('type'), description: form.get('description'), amount: Number(form.get('amount')), date: form.get('date'), junta_id: currentProfile.junta_id, created_by: currentProfile.id });
+      if (error) {
+        setTransactionError(error.message || 'No fue posible registrar el movimiento.');
+        return;
+      }
+      setShowModal(false);
+      router.refresh();
+    } catch {
+      setTransactionError('No fue posible registrar el movimiento. Revisa tu conexión e inténtalo nuevamente.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function applyTransactionFilters(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const params = new URLSearchParams(currentSearchParams.toString());
+    const form = new FormData(event.currentTarget);
+    const values = { movType: String(form.get('movType') ?? ''), movSource: String(form.get('movSource') ?? ''), movFrom: String(form.get('movFrom') ?? ''), movTo: String(form.get('movTo') ?? '') };
+    Object.entries(values).forEach(([key, value]) => value ? params.set(key, value) : params.delete(key));
+    params.delete('movPage');
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
+  function changeTransactionPage(nextPage: number) {
+    const params = new URLSearchParams(currentSearchParams.toString());
+    params.set('movPage', String(nextPage));
+    router.push(`${pathname}?${params.toString()}`);
   }
 
   async function uploadDocument(event: React.ChangeEvent<HTMLInputElement>) {
@@ -72,7 +102,7 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
   }, [currentPeriodDate, dueHistory, householdCreatedAt]);
   const maxSelectableMs = useMemo(() => {
     const maximum = new Date(currentPeriodDate);
-    maximum.setUTCMonth(maximum.getUTCMonth() + 12);
+    maximum.setUTCMonth(maximum.getUTCMonth() + 11);
     return maximum.getTime();
   }, [currentPeriodDate]);
   const isSelectablePeriod = (period: string) => {
@@ -89,9 +119,14 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
       return { period, due: dueByPeriod.get(period) ?? null, selectable };
     });
   }, [calendarYear, dueByPeriod, earliestSelectableMs, maxSelectableMs]);
+  const selectedOutsideVisibleYear = selectedPeriods.filter((period) => !calendarPeriods.some((item) => item.period === period));
+  const selectedPeriodLabels = selectedPeriods.map((period) => new Intl.DateTimeFormat('es-CL', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(period)));
+  const isExpiredPreference = (due: MemberDue | null | undefined) => due?.status === 'preference_created'
+    && Boolean(due.checkout_expires_at)
+    && new Date(due.checkout_expires_at as string).getTime() <= nowMs;
   const payableSelectedPeriods = selectedPeriods.filter((period) => {
     const due = dueByPeriod.get(period);
-    return isSelectablePeriod(period) && (!due || ['pending', 'rejected', 'refunded'].includes(due.status));
+    return isSelectablePeriod(period) && (!due || ['pending', 'rejected', 'refunded'].includes(due.status) || isExpiredPreference(due));
   });
   async function startDuePayment() {
     setPaymentLoading(true); setPaymentError('');
@@ -134,12 +169,13 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
     <header className="view-header"><div><span className="view-subtitle">Transparencia y Cuentas Claras</span><h2 className="view-title">Tesorería Transparente</h2></div><div className="view-actions"><button className="tour-help-btn"><span>?</span><span>Guía</span></button><button className="btn btn-ghost" onClick={() => setReportOpen(true)}>Generar Reporte Mensual</button>{isDirigente && <button className="btn btn-primary" onClick={() => setShowModal(true)}>＋ Registrar Movimiento</button>}</div></header>
 
     <div className="card shadow-box mb-24" aria-labelledby="due-calendar-title">
-      <div className="card-header"><div><span className="view-subtitle">Historial por domicilio</span><h3 id="due-calendar-title" className="card-title">Cuotas mensuales</h3><p className="card-subtitle">Selecciona uno o varios períodos pendientes. Un solo checkout cubrirá todos los seleccionados.</p></div><span className="verification-badge manual">{payableSelectedPeriods.length} seleccionados</span></div>
-      <div className="view-actions mb-16"><label className="form-label" htmlFor="due-calendar-year">Año</label><select id="due-calendar-year" className="form-input" value={calendarYear} onChange={(event) => setCalendarYear(Number(event.target.value))}>{yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}</select></div>
+      <div className="card-header"><div><span className="view-subtitle">Historial por domicilio</span><h3 id="due-calendar-title" className="card-title">Cuotas mensuales</h3><p className="card-subtitle">Selecciona uno o varios períodos pendientes. Un solo checkout cubrirá todos los seleccionados.</p></div><span className="verification-badge manual">{payableSelectedPeriods.length} {payableSelectedPeriods.length === 1 ? 'seleccionado' : 'seleccionados'}</span></div>
+      <div className="view-actions mb-16 due-calendar-controls"><label className="form-label" htmlFor="due-calendar-year">Año visible</label><select id="due-calendar-year" className="form-input" value={calendarYear} onChange={(event) => setCalendarYear(Number(event.target.value))}>{yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}</select>{selectedOutsideVisibleYear.length > 0 && <span className="form-help">También seleccionados en {selectedOutsideVisibleYear.map((period) => period.slice(0, 4)).filter((year, index, all) => all.indexOf(year) === index).join(', ')}.</span>}</div>
       <div className="due-period-grid">
         {calendarPeriods.map(({ period, due, selectable }) => {
           const paid = due?.status === 'paid';
-          const inProgress = due?.status === 'preference_created';
+          const expired = isExpiredPreference(due);
+          const inProgress = due?.status === 'preference_created' && !expired;
           const selected = selectedPeriods.includes(period);
           const label = new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(period));
           return <label key={period} className={`due-period-card ${paid ? 'paid' : inProgress ? 'pending' : selected ? 'selected' : !selectable ? 'disabled' : ''}`}>
@@ -147,10 +183,11 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
             <span className="due-period-label">{label.charAt(0).toUpperCase() + label.slice(1)}</span>
             {!selectable && <span className="due-period-status">Sin registro</span>}
             <strong>{formatCurrency(dueAmountForPeriod(period, due?.amount, dueRates, junta.monthly_due_amount))}</strong>
-            <span className="due-period-status">{paid ? '✓ Pagado' : inProgress ? '⌛ En proceso' : due?.status === 'refunded' ? '↩ Reembolsado' : due?.status === 'rejected' ? '! Rechazado' : 'Pendiente'}</span>
+            <span className="due-period-status">{paid ? '✓ Pagado' : inProgress ? '⌛ En proceso' : expired ? '↻ Intento vencido · renovar' : due?.status === 'refunded' ? '↩ Reembolsado' : due?.status === 'rejected' ? '! Rechazado' : 'Pendiente'}</span>
           </label>;
         })}
       </div>
+      {selectedPeriodLabels.length > 0 && <div className="selected-period-summary" aria-live="polite"><strong>Selección conservada ({selectedPeriodLabels.length}/12)</strong><span>{selectedPeriodLabels.join(' · ')}</span></div>}
       <div className="due-payment-summary"><span>Total seleccionado: <strong>{formatCurrency(payableSelectedPeriods.reduce((sum, period) => sum + dueAmountForPeriod(period, dueByPeriod.get(period)?.amount, dueRates, junta.monthly_due_amount), 0))}</strong></span><button className="btn btn-primary btn-lg" disabled={!payableSelectedPeriods.length || paymentLoading || !mercadoPagoConnection.connected} onClick={() => void startDuePayment()}>{paymentLoading ? 'Abriendo Mercado Pago…' : payableSelectedPeriods.length > 1 ? `Pagar ${payableSelectedPeriods.length} meses` : 'Pagar período seleccionado'}</button></div>
       {!mercadoPagoConnection.connected && <p className="form-help">La directiva debe conectar Mercado Pago antes de iniciar un cobro.</p>}
       {paymentError && <p className="form-error">{paymentError}</p>}
@@ -181,21 +218,21 @@ export default function TesoreriaClient({ transactions, documents, currentProfil
       </div>
     </div>}
 
-    <div className="treasury-stats-grid"><div className="t-stat-card total-balance"><span className="t-stat-label">Caja Disponible Actual</span><h3 className="t-stat-value">{formatCurrency(stats.balance)}</h3><span className="t-stat-desc">Saldo neto; transferencias internas excluidas</span></div><div className="t-stat-card text-success-card"><span className="t-stat-label">Ingresos Brutos</span><h3 className="t-stat-value">+{formatCurrency(stats.income)}</h3><span className="t-stat-desc">Cuotas y aportes antes de comisiones</span></div><div className="t-stat-card text-danger-card"><span className="t-stat-label">Gastos y Comisiones</span><h3 className="t-stat-value">-{formatCurrency(stats.expenses)}</h3><span className="t-stat-desc">Incluye {formatCurrency(stats.fees)} cobrados por proveedores</span></div></div>
+    <div className="treasury-stats-grid"><div className="t-stat-card total-balance"><span className="t-stat-label">Caja Disponible Actual</span><h3 className={`t-stat-value${!stats ? ' text-danger' : ''}`}>{stats ? formatCurrency(stats.balance) : 'No disponible'}</h3><span className="t-stat-desc">{treasuryAggregateError ?? 'Saldo neto; transferencias internas excluidas'}</span></div><div className="t-stat-card text-success-card"><span className="t-stat-label">Ingresos Brutos</span><h3 className="t-stat-value">{stats ? `+${formatCurrency(stats.income)}` : 'No disponible'}</h3><span className="t-stat-desc">Cuotas y aportes antes de comisiones</span></div><div className="t-stat-card text-danger-card"><span className="t-stat-label">Gastos y Comisiones</span><h3 className="t-stat-value">{stats ? `-${formatCurrency(stats.expenses)}` : 'No disponible'}</h3><span className="t-stat-desc">{stats ? `Incluye ${formatCurrency(stats.fees)} cobrados por proveedores` : 'No fue posible consultar este dato.'}</span></div></div>
 
-    <div className="charts-grid mt-24 mb-24"><div className="chart-card card shadow-box"><h3 className="card-title">Distribución de Egresos</h3><p className="card-subtitle">Clasificación de los gastos registrados</p><div className="chart-container"><ExpenseChart transactions={transactions} /></div></div><div className="chart-card card shadow-box"><h3 className="card-title">Flujo de Caja Mensual</h3><p className="card-subtitle">Comparativa histórica de ingresos y egresos</p><div className="chart-container"><CashflowChart transactions={transactions} /></div></div></div>
+    <div className="charts-grid mt-24 mb-24"><div className="chart-card card shadow-box"><h3 className="card-title">Distribución de Egresos</h3><p className="card-subtitle">Clasificación de los gastos registrados</p><div className="chart-container"><ExpenseChart breakdown={expenseBreakdown} error={treasuryAggregateError} /></div></div><div className="chart-card card shadow-box"><h3 className="card-title">Flujo de Caja Mensual</h3><p className="card-subtitle">Comparativa histórica de ingresos y egresos</p><div className="chart-container"><CashflowChart summaries={monthlySummary} error={treasuryAggregateError} /></div></div></div>
 
-    <div className="split-grid"><div className="split-card main-split shadow-box"><div className="card-header"><div><h3 className="card-title">Libro de Caja Reciente</h3><p className="card-subtitle">Los movimientos verificados por Mercado Pago no pueden ser alterados.</p></div></div><div className="ledger-table-wrapper"><table className="ledger-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto / Descripción</th><th className="text-right">Monto (CLP)</th></tr></thead><tbody>{transactions.map((tx) => {
+    <div className="split-grid"><div className="split-card main-split shadow-box"><div className="card-header"><div><h3 className="card-title">Libro de Caja</h3><p className="card-subtitle">{transactionTotal} movimientos · página {transactionPage}</p></div></div><form className="treasury-transaction-filters" onSubmit={applyTransactionFilters} aria-label="Filtros del libro de caja"><select name="movType" className="form-input" defaultValue={transactionFilters.type} aria-label="Filtrar por tipo"><option value="">Todos los tipos</option><option value="ingreso">Ingresos</option><option value="egreso">Egresos</option></select><select name="movSource" className="form-input" defaultValue={transactionFilters.source} aria-label="Filtrar por origen"><option value="">Todos los orígenes</option><option value="manual">Manual</option><option value="mercadopago">Mercado Pago</option><option value="bank_import">Importación bancaria</option></select><label className="sr-only" htmlFor="mov-from">Desde</label><input id="mov-from" name="movFrom" type="date" defaultValue={transactionFilters.from} className="form-input" /><label className="sr-only" htmlFor="mov-to">Hasta</label><input id="mov-to" name="movTo" type="date" defaultValue={transactionFilters.to} className="form-input" /><button className="btn btn-secondary" type="submit">Aplicar filtros</button></form><div className="ledger-table-wrapper"><table className="ledger-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto / Descripción</th><th className="text-right">Monto (CLP)</th></tr></thead><tbody>{transactions.map((tx) => {
       const transfer = tx.accounting_kind === 'transfer';
       const verified = tx.source === 'mercadopago';
       const value = Math.abs(Number(tx.net_amount ?? tx.amount));
       return <tr key={tx.id}><td>{formatDate(tx.date)}</td><td><span className={`transaction-type ${transfer ? 'transferencia' : tx.type}`}>{transfer ? 'Transferencia' : tx.type === 'ingreso' ? 'Ingreso' : 'Egreso'}</span></td><td><div className="transaction-description"><span>{tx.description}</span><div className="transaction-metadata">{verified ? <span className={`verification-badge ${tx.verification_status === 'reconciled' ? 'verified' : 'pending'}`}>{tx.verification_status === 'reconciled' ? '✓ Conciliado con Mercado Pago' : '✓ Confirmado por Mercado Pago'}</span> : <span className="verification-badge manual">Registro manual</span>}{Number(tx.fee_amount ?? 0) > 0 && <span>Comisión: {formatCurrency(Number(tx.fee_amount))}</span>}</div></div></td><td className={`text-right ${transfer ? 'amount-transferencia' : `amount-${tx.type}`}`}>{transfer ? '↔ ' : tx.type === 'ingreso' ? '+' : '-'}{formatCurrency(value)}</td></tr>;
-    })}</tbody></table>{!transactions.length && <p className="empty-state">No hay movimientos registrados.</p>}</div></div><div className="split-card side-split shadow-box"><h3 className="card-title">Recaudación por Domicilio</h3><p className="card-subtitle">Cada dirección paga una cuota mensual, aunque tenga varios socios asociados.</p><div className="cuota-progress-box"><div className="cuota-progress-bar-container"><div className="cuota-progress-bar-fill" style={{ width: `${totalHouseholds ? Math.round(paidHouseholds / totalHouseholds * 100) : 0}%` }} /></div><div className="cuota-progress-meta"><span className="cuota-progress-text">{paidHouseholds} de {totalHouseholds} domicilios al día ({totalHouseholds ? Math.round(paidHouseholds / totalHouseholds * 100) : 0}%)</span></div></div><div className={`payment-status-badge ${currentDuePaid ? 'paid' : 'outstanding'}`}><span>Cuota de {currentProfile.address}: <strong>{currentDuePaid ? 'Pagada' : 'Pendiente'}</strong></span></div><div className="payment-invoice-card"><span>Cuota del período actual</span><strong>{formatCurrency(dueAmountForPeriod(`${currentChileBillingPeriod()}-01`, currentDue?.amount, dueRates, junta.monthly_due_amount))}</strong></div>{paymentReturn === 'approved' && <p className="form-help">Mercado Pago recibió el pago. La confirmación final llegará automáticamente.</p>}{paymentReturn === 'pending' && <p className="form-help">El pago está pendiente de confirmación.</p>}{paymentReturn === 'failure' && <p className="form-error">El pago no se completó. Puedes volver a intentarlo.</p>}{!currentDuePaid && !mercadoPagoConnection.connected && <p className="form-help">La directiva debe conectar la cuenta Mercado Pago de la junta antes de recibir pagos.</p>}{paymentError && <p className="form-error">{paymentError}</p>}{isDirigente && <><button className="btn btn-secondary btn-block" onClick={sendReminders}>Enviar Recordatorios de Cuota</button>{reminderMessage && <p className="form-help">{reminderMessage}</p>}</>}</div></div>
+    })}</tbody></table><div className="ledger-mobile-list" aria-label="Movimientos del libro de caja">{transactions.map((tx) => { const transfer = tx.accounting_kind === 'transfer'; const value = Math.abs(Number(tx.net_amount ?? tx.amount)); return <article className="ledger-mobile-item" key={tx.id}><div><strong>{tx.description}</strong><span>{formatDate(tx.date)} · {transfer ? 'Transferencia' : tx.type === 'ingreso' ? 'Ingreso' : 'Egreso'}</span></div><b className={transfer ? 'amount-transferencia' : `amount-${tx.type}`}>{transfer ? '↔ ' : tx.type === 'ingreso' ? '+' : '-'}{formatCurrency(value)}</b></article>; })}</div>{!transactions.length && <p className="empty-state">No hay movimientos registrados.</p>}</div><div className="transaction-pagination" aria-label="Paginación del libro de caja"><button className="btn btn-secondary" type="button" disabled={transactionPage <= 1} onClick={() => changeTransactionPage(transactionPage - 1)}>← Anteriores</button><span>Mostrando {(transactionPage - 1) * transactionPageSize + (transactions.length ? 1 : 0)}–{Math.min(transactionPage * transactionPageSize, transactionTotal)} de {transactionTotal}</span><button className="btn btn-secondary" type="button" disabled={transactionPage * transactionPageSize >= transactionTotal} onClick={() => changeTransactionPage(transactionPage + 1)}>Siguientes →</button></div></div><div className="split-card side-split shadow-box"><h3 className="card-title">Recaudación por Domicilio</h3><p className="card-subtitle">Cada dirección paga una cuota mensual, aunque tenga varios socios asociados.</p>{dueCountError ? <p className="form-error">{dueCountError}</p> : <div className="cuota-progress-box"><div className="cuota-progress-bar-container"><div className="cuota-progress-bar-fill" style={{ width: `${totalHouseholds ? Math.round(paidHouseholds / totalHouseholds * 100) : 0}%` }} /></div><div className="cuota-progress-meta"><span className="cuota-progress-text">{paidHouseholds} de {totalHouseholds} domicilios al día ({totalHouseholds ? Math.round(paidHouseholds / totalHouseholds * 100) : 0}%)</span></div></div>}<div className={`payment-status-badge ${currentDuePaid ? 'paid' : 'outstanding'}`}><span>Cuota de {currentProfile.address}: <strong>{currentDuePaid ? 'Pagada' : 'Pendiente'}</strong></span></div><div className="payment-invoice-card"><span>Cuota del período actual</span><strong>{formatCurrency(dueAmountForPeriod(currentChileBillingPeriodStart(), currentDue?.amount, dueRates, junta.monthly_due_amount))}</strong></div>{paymentReturn === 'approved' && <p className="form-help">Mercado Pago recibió el pago. La confirmación final llegará automáticamente.</p>}{paymentReturn === 'pending' && <p className="form-help">El pago está pendiente de confirmación.</p>}{paymentReturn === 'failure' && <p className="form-error">El pago no se completó. Puedes volver a intentarlo.</p>}{!currentDuePaid && !mercadoPagoConnection.connected && <p className="form-help">La directiva debe conectar la cuenta Mercado Pago de la junta antes de recibir pagos.</p>}{paymentError && <p className="form-error">{paymentError}</p>}{isDirigente && <><button className="btn btn-secondary btn-block" onClick={sendReminders}>Enviar Recordatorios de Cuota</button>{reminderMessage && <p className="form-help">{reminderMessage}</p>}</>}</div></div>
 
     <div className="document-center mt-32 card shadow-box"><div className="card-header document-center-header"><div><h3 className="card-title">Repositorio de Transparencia</h3><p className="card-subtitle">Documentos oficiales, actas, rendiciones y cartolas digitalizadas</p></div>{isDirigente && <label className="btn btn-secondary btn-sm document-upload">{documentLoading ? 'Subiendo…' : 'Subir Documento'}<input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={documentLoading} onChange={uploadDocument} hidden /></label>}</div>{documentError && <p className="form-error">{documentError}</p>}<div className="document-grid">{documents.map((document) => <article className="document-card" key={document.path}><div className="document-icon">📄</div><div className="document-info"><h4>{document.name}</h4><span>{formatFileSize(document.size)}{document.created_at ? ` · ${formatDate(document.created_at)}` : ''}</span></div><div className="document-actions">{document.signedUrl && <a className="btn btn-sm btn-ghost" href={document.signedUrl} target="_blank" rel="noreferrer">Ver</a>}{isDirigente && <button className="btn btn-sm btn-secondary danger-action" onClick={() => deleteDocument(document.path)}>Eliminar</button>}</div></article>)}{!documents.length && <p className="empty-state">No hay documentos publicados.</p>}</div></div>
 
-    {showModal && <div className="modal active" role="dialog" aria-modal="true"><div className="modal-dialog"><div className="modal-content"><div className="modal-header"><h3 className="modal-title">Registrar Movimiento</h3><button className="modal-close" onClick={() => setShowModal(false)}>×</button></div><div className="modal-body"><form onSubmit={handleAddTransaction}><div className="form-group"><label className="form-label">Tipo</label><select name="type" className="form-input" required><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></div><div className="form-group"><label className="form-label">Descripción</label><input name="description" className="form-input" required /></div><div className="form-row"><div className="form-group"><label className="form-label">Monto</label><input name="amount" type="number" min="1" className="form-input" required /></div><div className="form-group"><label className="form-label">Fecha</label><input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="form-input" required /></div></div><div className="modal-footer"><button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button><button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Guardando…' : 'Registrar Movimiento'}</button></div></form></div></div></div></div>}
-    {reportOpen && <div className="modal active report-modal" role="dialog" aria-modal="true"><div className="modal-dialog"><div className="modal-content"><div className="modal-header"><h3 className="modal-title">Reporte Mensual de Tesorería</h3><button className="modal-close" onClick={() => setReportOpen(false)}>×</button></div><div className="modal-body"><div className="report-summary-row income"><span>Ingresos brutos del mes</span><strong>{formatCurrency(monthlyStats.income)}</strong></div><div className="report-summary-row expense"><span>Gastos y comisiones del mes</span><strong>{formatCurrency(monthlyStats.expenses)}</strong></div><div className="report-summary-row"><span>Variación neta del mes</span><strong>{formatCurrency(monthlyStats.balance)}</strong></div><p className="card-subtitle">El reporte incluye {currentMonthTransactions.length} movimientos del mes actual y {documents.length} documentos disponibles.</p></div><div className="modal-footer"><button className="btn btn-ghost" onClick={() => setReportOpen(false)}>Cerrar</button><button className="btn btn-primary" onClick={() => window.print()}>Imprimir / Guardar PDF</button></div></div></div></div>}
+    {showModal && <div className="modal active" role="dialog" aria-modal="true"><div className="modal-dialog"><div className="modal-content"><div className="modal-header"><h3 className="modal-title">Registrar Movimiento</h3><button className="modal-close" onClick={() => setShowModal(false)}>×</button></div><div className="modal-body"><form onSubmit={handleAddTransaction}><div className="form-group"><label className="form-label">Tipo</label><select name="type" className="form-input" required><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></div><div className="form-group"><label className="form-label">Descripción</label><input name="description" className="form-input" required /></div><div className="form-row"><div className="form-group"><label className="form-label">Monto</label><input name="amount" type="number" min="1" className="form-input" required /></div><div className="form-group"><label className="form-label">Fecha</label><input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="form-input" required /></div></div>{transactionError && <p className="form-error">{transactionError}</p>}<div className="modal-footer"><button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button><button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Guardando…' : 'Registrar Movimiento'}</button></div></form></div></div></div></div>}
+    {reportOpen && <div className="modal active report-modal" role="dialog" aria-modal="true"><div className="modal-dialog"><div className="modal-content"><div className="modal-header"><h3 className="modal-title">Reporte Mensual de Tesorería</h3><button className="modal-close" onClick={() => setReportOpen(false)}>×</button></div><div className="modal-body">{treasuryAggregateError ? <p className="form-error">{treasuryAggregateError}</p> : <><div className="report-summary-row income"><span>Ingresos brutos del mes</span><strong>{formatCurrency(currentMonthSummary?.income ?? 0)}</strong></div><div className="report-summary-row expense"><span>Gastos y comisiones del mes</span><strong>{formatCurrency(currentMonthSummary?.expenses ?? 0)}</strong></div><div className="report-summary-row"><span>Variación neta del mes</span><strong>{formatCurrency(currentMonthSummary?.balance ?? 0)}</strong></div><p className="card-subtitle">El reporte incluye {currentMonthSummary?.movement_count ?? 0} movimientos del mes actual y {documents.length} documentos disponibles.</p></>}</div><div className="modal-footer"><button className="btn btn-ghost" onClick={() => setReportOpen(false)}>Cerrar</button><button className="btn btn-primary" disabled={Boolean(treasuryAggregateError)} onClick={() => window.print()}>Imprimir / Guardar PDF</button></div></div></div></div>}
   </section>;
 }
 
