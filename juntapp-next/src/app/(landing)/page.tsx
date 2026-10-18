@@ -1,4 +1,3 @@
-import HomeProductMap from '@/components/seo/HomeProductMap';
 import JsonLd from '@/components/seo/JsonLd';
 import OriginalPublicPage from '@/components/original/OriginalPublicPage';
 import { publicMetadata } from '@/lib/seo/metadata';
@@ -16,9 +15,7 @@ export default function HomePage() {
   return (
     <>
       <JsonLd data={softwareApplicationSchema()} />
-      <OriginalPublicPage view="home">
-        <HomeProductMap />
-      </OriginalPublicPage>
+      <OriginalPublicPage view="home" />
     </>
   );
 }
